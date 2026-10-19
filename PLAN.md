@@ -27,7 +27,7 @@ country/session per run. Do not retry access denials with a different identity.
 
 ## Verified offline
 
-85 regression tests pass, including 22 local browser tests and seven mocked
+92 regression tests pass, including 29 local browser tests and seven mocked
 proxy tests. Saved source HTML supports 60 product cards and the provided
 detail page. No test contacts 1688 or creates paid proxy traffic.
 Actor definitions and container startup are validated before delivery.
@@ -46,6 +46,11 @@ Actor definitions and container startup are validated before delivery.
 - Owner requested only keyword/Offer ID inputs and Apify-managed proxy billing.
 - Version 0.2.0 removes image/search-link paths, restores numeric-ID detail
   collection and implements explicit residential-country configuration.
+- Owner's 0.2.0 HK run reached a public HTTP-200 homepage, then timed out at
+  entering_keyword. The known global input was absent from the main HTML.
+- Version 0.2.1 selects usable known controls instead of the first DOM match
+  and records bounded, value-free search-control metadata on entry failures.
+  Regional-layout adaptation still requires evidence from the actual failed page.
 
 ## Remaining work / release gate
 

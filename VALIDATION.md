@@ -1,10 +1,10 @@
 # Validation status — October 19, 2026
 
-**Version 0.2.0 — development preview, not production-validated.**
+**Version 0.2.1 — development preview, not production-validated.**
 
 ## Confirmed offline
 
-- **85 tests pass:** 44 core/parser/input/runner tests, 22 local Chromium tests,
+- **92 tests pass:** 44 core/parser/input/runner tests, 29 local Chromium tests,
   12 access-diagnostic tests and seven mocked proxy-configuration tests.
 - The form exposes keywords and numeric Offer IDs, not a mode dropdown.
   IDs take priority even when the example keyword is still filled.
@@ -29,6 +29,10 @@
 - Proxy mocks confirm the RESIDENTIAL group, explicit CN/HK selection, one
   session initialization, decoded credentials without logging, and sanitized
   access/configuration errors without direct/country fallback.
+- Known search controls are chosen by visibility, enabled/editable state, not
+  the first DOM match. Hidden/read-only copies, open shadow roots, unknown
+  controls and sanitized failure inventories are regression-tested. Actual form
+  values, passwords, event handlers, scripts and URLs are not exported by the inventory.
 - Login/verification and HTTP 401/403/429 remain terminal across the batch.
   Optional login closure requires a real close control and usable public content.
 - Local Chromium tests abort all outgoing network requests; proxy tests mock the
@@ -50,9 +54,10 @@ These are build/offline checks, not live site-collection acceptance.
 | Apify container/SDK/browser startup under limited permissions | Owner logs confirm earlier versions start successfully |
 | Keyword collection on the earlier generic proxy setup | Failed at opening_homepage; login.taobao.com was the final host |
 | Search-link mode in version 0.1.2 | Owner run detected a visible verification frame; mode is now removed |
-| CN/HK residential proxy availability in the owner's account | Not tested |
-| Successful live keyword and second-page collection in 0.2.0 | Not tested |
-| Successful live Offer ID collection in 0.2.0 | Not tested |
+| Residential proxy configuration | Owner's HK run initialized and fetched the homepage; actual exit-IP geolocation and CN access unverified |
+| HK keyword run in 0.2.0 | Reached HTTP-200 homepage, then timed out at entering_keyword; known input absent from captured main HTML |
+| Successful live keyword and second-page collection in 0.2.1 | Not tested |
+| Successful live Offer ID collection in 0.2.1 | Not tested |
 | Exact optional-popup X wrapper | Not supplied; test wrappers are synthetic |
 | Real quantity-price tiers | No source fixture; not connected |
 | Current relevance, speed, proxy traffic cost and success rate | Not measured |
@@ -63,6 +68,13 @@ login_url, host login.taobao.com, zero product cards and no keyword input.
 The subsequent search-link log reports verification_frame. Neither establishes
 that every manual visitor needs an account; both show this Actor's earlier
 browser sessions failed before collection.
+
+The newer `FAILURE_01 (2).json` records www.1688.com, title 阿里1688首页,
+HTTP 200, stage entering_keyword and keyword_input_present false. This is not
+the earlier top-level login error. The limited report cannot distinguish a
+different regional control from an incomplete app load or shadow-DOM state.
+Version 0.2.1 adds bounded control inventories for that evidence; it does not
+claim a newly observed regional parser or a successful live fix.
 
 ## Development access limitation
 

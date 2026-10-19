@@ -4,7 +4,7 @@
 
 Repository: https://github.com/jiazg23/1688-Scaper
 Branch: `main`; source directory: `.`; definition: `.actor/actor.json`.
-Version 0.2.0 uses keywords or numeric Offer IDs only. IDs take priority.
+Version 0.2.1 uses keywords or numeric Offer IDs only. IDs take priority.
 No saved browser session, token or personal credentials belong in this repository.
 
 ## Build privately first
@@ -35,6 +35,9 @@ are resolved. No automatic fallback or country/identity retry is implemented.
 ## Evidence still needed
 
 - Successful permitted live keyword, multi-keyword and second-page collection.
+- If keyword entry fails, obtain the 0.2.1 failure report's `search_controls` and
+  `search_buttons`. The owner's HK run reached www.1688.com but did not expose
+  the known control in its captured HTML. Do not guess that layout's selectors.
 - Successful permitted live Offer ID extraction against the saved source layout.
 - Whether available CN/HK residential access works in this account and at what cost.
 - Real surrounding X markup for the optional login iframe; current close-button

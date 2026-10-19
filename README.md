@@ -4,9 +4,9 @@ Collect source-backed product and supplier information from **keywords** or
 **numeric Offer IDs**, then download a product CSV and supplier shortlist.
 
 > **Development preview — live access is not release-validated.** Earlier owner
-> runs encountered full-page login and verification responses. The new
-> residential proxy configuration has not been tested on a paid live run.
-> Offline tests and a successful build do not establish that 1688 access works.
+> runs encountered full-page login and verification responses. The latest HK
+> run reached the homepage but failed at keyword entry. No successful live
+> product collection is established by the offline tests or container startup.
 
 ## 🔎 Two ways to start
 
@@ -141,6 +141,14 @@ Run options. No unlimited processing-time or spending default is imposed here.
   final host and card/control counts. No raw HTML, credentials, full URLs or
   challenge query tokens are copied to this report.
 
+Since 0.2.1, keyword-entry/submission failures also include `search_controls`
+and `search_buttons`: bounded IDs/classes, public control attributes, visibility,
+read-only state and open-shadow-root metadata. **Form values are not collected.**
+`keyword_control_unavailable` identifies a missing/unusable known search box;
+it is distinct from a login redirect. Send this report when a regional homepage
+does not match the supplied global-page controls. Unknown controls are reported,
+not clicked speculatively.
+
 Products are written once per product to the dataset when collection ends.
 A hard platform timeout may interrupt final dataset/CSV writes; check the
 page-level recovery snapshot. CSV cells are protected against formula injection.
@@ -155,8 +163,15 @@ An optional login popup can be closed through its own visible control only when
 usable public content remains behind it. A full-page login redirect or genuine
 verification screen stops the batch and preserves earlier collected products.
 
-**The earlier live failures are not proven fixed.** The proxy change is
-configuration plumbing tested with mocks, not a successful live access test.
+The owner's subsequent HK run reached the public homepage (HTTP 200, title
+`阿里1688首页`) and then timed out at keyword entry, with no known global-page
+input in the captured main HTML. A regional layout difference, an unready
+component or shadow/hidden control needs actual control evidence to distinguish.
+The collector now selects a usable known control rather than its first DOM match.
+
+**The live collection failures are not proven fixed.** The HK run establishes
+homepage access for that session, not working product search. Version 0.2.1's
+control-selection and diagnostic changes have only been tested offline.
 Unknown layouts fail explicitly rather than pretending to be successful
 zero-result searches. Use only authorized data and respect applicable site terms.
 

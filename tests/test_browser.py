@@ -2,13 +2,15 @@
 
 from pathlib import Path
 from contextlib import aclosing
+import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
-from src.collector import HOME, BrowserCollector, guard_page, next_page, wait_results, wait_product
+from src.collector import HOME, BrowserCollector, guard_page, next_page, wait_results, wait_product, ready_control
+from src.diagnostics import search_control_report, capture_failure
 from src.popups import dismiss_optional_login
 from src.parser import (CARD, KEYWORD, SEARCH,
                         parse_search, CollectionError, AccessBlocked)
@@ -41,6 +43,63 @@ class OfflineBrowserTests(unittest.IsolatedAsyncioTestCase):
         await self.page.locator(KEYWORD).fill("wireless earbuds")
         self.assertEqual(await self.page.locator(KEYWORD).input_value(), "wireless earbuds")
         self.assertEqual(await self.page.locator(SEARCH).count(), 1)
+
+    async def test_ready_keyword_skips_hidden_and_readonly_copies(self):
+        await self.page.set_content('<textarea class="cgf-search-input__input" hidden></textarea><textarea class="cgf-search-input__input" readonly></textarea><textarea class="cgf-search-input__input" id="usable"></textarea>')
+        control = await ready_control(self.page, KEYWORD, "keyword_control", editable=True, timeout_seconds=0)
+        await control.fill("hair dryer")
+        self.assertEqual(await self.page.locator("#usable").input_value(), "hair dryer")
+
+    async def test_ready_search_button_skips_hidden_copy(self):
+        await self.page.set_content('<button data-tracker="textSearch.search" hidden>Search</button><button data-tracker="textSearch.search" id="usable">Search</button>')
+        control = await ready_control(self.page, SEARCH, "search_button", timeout_seconds=0)
+        self.assertEqual(await control.get_attribute("id"), "usable")
+
+    async def test_missing_global_control_returns_specific_layout_error(self):
+        await self.page.set_content('<title>阿里1688首页</title><input id="other-search" placeholder="搜索商品"><button>搜索</button>')
+        with self.assertRaises(CollectionError) as raised:
+            await ready_control(self.page, KEYWORD, "keyword_control", editable=True, timeout_seconds=0)
+        self.assertEqual(raised.exception.code, "keyword_control_unavailable")
+        report = await search_control_report(self.page)
+        self.assertEqual(report["search_controls"][0]["id"], "other-search")
+        self.assertFalse(report["search_controls"][0]["known_keyword_match"])
+        self.assertEqual(report["search_button_count"], 1)
+
+    async def test_control_inventory_omits_values_passwords_scripts_and_urls(self):
+        await self.page.set_content('<input id="query" type="search" value="SECRET"><input type="password" value="SECRET"><textarea>SECRET</textarea><button aria-label="Search" onclick="send(\'SECRET\')">Search</button><a href="https://example.test/?token=SECRET">link</a><script>window.token="SECRET";</script>')
+        report = await search_control_report(self.page)
+        self.assertEqual(report["search_control_count"], 2)
+        self.assertEqual(report["search_button_count"], 1)
+        self.assertNotIn("SECRET", json.dumps(report))
+        self.assertNotIn("https://", json.dumps(report))
+
+    async def test_controls_in_open_shadow_root_are_found_and_reported(self):
+        await self.page.set_content('<div id="search-component"></div>')
+        await self.page.evaluate("""() => {
+            document.querySelector('#search-component').attachShadow({mode:'open'}).innerHTML = '<textarea class="cgf-search-input__input"></textarea>';
+        }""")
+        control = await ready_control(self.page, KEYWORD, "keyword_control", editable=True, timeout_seconds=0)
+        await control.fill("hair dryer")
+        report = await search_control_report(self.page)
+        self.assertTrue(report["search_controls"][0]["open_shadow_root"])
+        self.assertTrue(report["search_controls"][0]["known_keyword_match"])
+        self.assertNotIn("hair dryer", json.dumps(report))
+
+    async def test_control_inventory_is_bounded_and_attached_to_failure(self):
+        await self.page.set_content("".join(f'<input id="q-{i}" type="search">' for i in range(25)))
+        callback = AsyncMock()
+        error = CollectionError("unsupported search layout")
+        await capture_failure(self.page, {"index": 1, "kind": "keyword"}, "entering_keyword", error, callback, 200)
+        report = callback.call_args.args[1]
+        self.assertEqual(report["search_control_count"], 25)
+        self.assertEqual(len(report["search_controls"]), 20)
+        self.assertTrue(report["search_controls_truncated"])
+        self.assertEqual(error.diagnostic_key, "FAILURE_01.json")
+
+    async def test_ready_control_does_not_ignore_verification(self):
+        await self.page.set_content('<title>安全验证</title><textarea class="cgf-search-input__input"></textarea>')
+        with self.assertRaises(AccessBlocked):
+            await ready_control(self.page, KEYWORD, "keyword_control", editable=True, timeout_seconds=0)
 
     async def test_pagination_requires_changed_products(self):
         await self.page.set_content(self.card + self.pagination)

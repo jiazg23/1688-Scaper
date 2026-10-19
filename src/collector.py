@@ -18,6 +18,31 @@ from .parser import (CARD, NEXT, KEYWORD, SEARCH, AccessBlocked, CollectionError
 HOME = "https://www.1688.com/"
 
 
+async def ready_control(page, selector, kind, *, editable=False, timeout_seconds=30):
+    """Choose a usable known control, not a hidden responsive copy at index zero."""
+    deadline = asyncio.get_running_loop().time() + timeout_seconds
+    while True:
+        await guard_page(page)
+        for control in await page.locator(selector).all():
+            try:
+                if not await control.is_visible() or not await control.is_enabled():
+                    continue
+                if editable and not await control.is_editable():
+                    continue
+                return control
+            except BrowserError:
+                continue  # A component may have rerendered; observe the same page.
+        if asyncio.get_running_loop().time() >= deadline:
+            break
+        await asyncio.sleep(0.5)
+    error = UnsupportedLayout(
+        f"No usable {kind.replace('_', ' ')} matched the supplied global-page layout. "
+        "Inspect the search_controls and search_buttons in the failure report; "
+        "a different regional layout or incomplete page load may be responsible.")
+    error.code = f"{kind}_unavailable"
+    raise error
+
+
 async def guard_page(page):
     signals = {"verification_element": False, "login_form": False}
     for element in await page.locator('#nc_1_wrapper, #baxia-dialog-content, iframe[src*="punish"], iframe[src*="captcha"]').all():
@@ -174,9 +199,11 @@ class BrowserCollector:
                 raise CollectionError(f"1688 home page returned HTTP {response.status}.")
             baseline_ids = set(await page.locator(CARD).evaluate_all("nodes => nodes.map(n => n.dataset.offerid)"))
             progress("entering_keyword")
-            await page.locator(KEYWORD).first.fill(spec["value"])
+            keyword = await ready_control(page, KEYWORD, "keyword_control", editable=True)
+            await keyword.fill(spec["value"], timeout=5000)
             progress("submitting_keyword")
-            await page.locator(SEARCH).first.click()
+            search = await ready_control(page, SEARCH, "search_button")
+            await search.click(timeout=5000)
             progress("waiting_for_results")
             source_page = page
             page = await wait_results(source_page, popup_pages=popup_pages, baseline_ids=baseline_ids)

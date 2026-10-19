@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1 — development preview, 2026-10-19
+
+- Select visible, enabled/editable known keyword controls and search buttons,
+  skipping hidden or read-only responsive copies rather than using the first match.
+- Add specific keyword/search-control-unavailable codes and bounded control
+  inventories to keyword-entry/submission failure reports. No form values,
+  raw HTML, scripts, full URLs or event handlers are collected by the inventory.
+- Cover open shadow roots, privacy and missing-layout diagnostics in 92 tests.
+- The owner's HK run now reaches the homepage but has no known global input
+  in its captured main HTML. Its actual layout remains unverified; no live
+  collection fix or new regional selector is claimed.
+
 ## 0.2.0 — development preview, 2026-10-19
 
 - Simplify the form to keywords or numeric Offer IDs. IDs take priority over
