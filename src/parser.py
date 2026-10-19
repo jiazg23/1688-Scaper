@@ -26,11 +26,19 @@ class CollectionError(RuntimeError):
 
 
 class AccessBlocked(CollectionError):
-    pass
+    def __init__(self, message, code="access_blocked"):
+        super().__init__(message)
+        self.code = code
 
 
 class UnsupportedLayout(CollectionError):
     pass
+
+
+def check_http_status(status):
+    if status in {401, 403, 429}:
+        code = "http_rate_limit" if status == 429 else "http_access_denied"
+        raise AccessBlocked(f"1688 returned HTTP {status}; collection stopped without retrying another identity.", code)
 
 
 def text(node):
@@ -46,18 +54,47 @@ def hidden(node):
     return False
 
 
-def check_access(html, url=""):
-    lower = html.lower()
+def check_access(html, url="", visible_signals=None):
     soup = BeautifulSoup(html, "html.parser")
     title = text(soup.title).lower()
-    if ("_____tmd_____" in url.lower() or "_____tmd_____" in lower
-            or soup.select_one('#nc_1_wrapper, #baxia-dialog-content, iframe[src*="punish"], iframe[src*="captcha"]')
-            or re.search(r'"action"\s*:\s*"captcha"', lower)
-            or any(marker in title for marker in ("captcha", "access denied", "安全验证", "访问受限"))):
-        raise AccessBlocked("1688 requested verification or denied access. No verification bypass was attempted.")
-    host = urlsplit(url).hostname or ""
-    if host in {"login.1688.com", "login.taobao.com", "passport.1688.com"} or soup.select_one('input[type=password]'):
-        raise AccessBlocked("1688 requires sign-in; browser credentials are not imported into the Actor.")
+    parts = urlsplit(url)
+    if "_____tmd_____" in parts.path.lower() or re.search(r"(?:^|/)punish(?:/|$)", parts.path, re.I):
+        raise AccessBlocked("1688 opened a verification URL. No verification bypass was attempted.", "verification_url")
+    if any(marker in title for marker in ("captcha", "access denied", "安全验证", "访问受限")):
+        raise AccessBlocked("1688 displayed a verification/access-denied page title.", "verification_title")
+    challenge_nodes = soup.select('#nc_1_wrapper, #baxia-dialog-content, iframe[src*="punish"], iframe[src*="captcha"]')
+    active_challenge = (visible_signals["verification_element"] if visible_signals is not None
+                        else any(not hidden(n) for n in challenge_nodes))
+    if active_challenge:
+        raise AccessBlocked("1688 displayed a verification control or frame.", "verification_element")
+    # A reference inside an SDK script is not navigation. Only an actual meta
+    # refresh destination is evidence of a requested challenge redirect.
+    for node in soup.select('meta[http-equiv]'):
+        if node.get("http-equiv", "").lower() == "refresh":
+            content = node.get("content", "").lower()
+            if "_____tmd_____" in content or re.search(r"/punish(?:[/?'\";]|$)", content):
+                raise AccessBlocked("1688 requested a verification-page redirect.", "verification_redirect")
+    # Standalone challenge responses may consist only of a configuration script.
+    # Do not flag a generic captcha configuration in an otherwise normal app.
+    app = soup.select_one(CARD + ", " + KEYWORD + ", #productTitle h1")
+    if app is None:
+        decoder = json.JSONDecoder()
+        for script in soup.select("script"):
+            source = script.string or script.get_text()
+            for match in re.finditer(r"(?:\b(?:var|let|const)\s+\w+|(?:window\.)?_config_)\s*=\s*(?=\{)", source):
+                try:
+                    config, _ = decoder.raw_decode(source[match.end():])
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(config, dict) and config.get("action") == "captcha":
+                    raise AccessBlocked("1688 returned a standalone verification configuration.", "verification_config")
+    host = parts.hostname or ""
+    if host in {"login.1688.com", "login.taobao.com", "passport.1688.com"}:
+        raise AccessBlocked("1688 opened a sign-in page; browser credentials are not imported.", "login_url")
+    active_login = (visible_signals["login_form"] if visible_signals is not None
+                    else any(not hidden(n) for n in soup.select('input[type=password]')))
+    if active_login:
+        raise AccessBlocked("1688 displayed a sign-in form; browser credentials are not imported.", "login_form")
 
 
 def page_currency(soup):
@@ -82,8 +119,8 @@ def supplier_url(value):
     return None
 
 
-def parse_search(html, url=""):
-    check_access(html, url)
+def parse_search(html, url="", visible_signals=None):
+    check_access(html, url, visible_signals)
     soup = BeautifulSoup(html, "html.parser")
     currency = page_currency(soup)
     products, ids = [], set()
@@ -145,9 +182,9 @@ def parse_search(html, url=""):
     return {"products": products, "has_next": has_next, "page_number": int(active) if active.isdigit() else None}
 
 
-def parse_product(html, url):
+def parse_product(html, url, visible_signals=None):
     """Captured 1688 detail DOM, then an identity-matched JSON-LD fallback."""
-    check_access(html, url)
+    check_access(html, url, visible_signals)
     expected_url = product_url(url)
     soup = BeautifulSoup(html, "html.parser")
     if soup.select_one("#productTitle h1"):

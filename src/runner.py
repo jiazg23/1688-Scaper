@@ -47,6 +47,9 @@ class Runner:
             except Exception as exc:
                 outcome.update(status="partial" if seen else "failed", products=len(seen),
                                error=str(exc) if isinstance(exc, (CollectionError, ValueError)) else "Unexpected collector error; inspect the implementation.")
+                for attribute in ("code", "stage", "diagnostic_key", "diagnostic_storage_failed"):
+                    if hasattr(exc, attribute):
+                        outcome["error_code" if attribute == "code" else attribute] = getattr(exc, attribute)
                 # Access restrictions are terminal across the run. Never rotate
                 # identity or move to later inputs after the site denies access.
                 stop = isinstance(exc, AccessBlocked) or self.config.strict or (spec["kind"] == "image" and not self.config.skip_failed_images)

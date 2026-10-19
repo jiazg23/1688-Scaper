@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1 — development preview, 2026-10-19
+
+- Fix false access-block detections caused by SDK challenge-path references
+  and hidden login controls. Visible verification/login walls remain terminal.
+- Add progress-stage logs and FAILURE_NN.json reports with specific detection
+  codes and run-summary links; omit full URLs, cookies, source and challenge tokens.
+- Extend offline suite to 59 tests. Owner's reported access failure still needs
+  new diagnostic evidence; no live access fix is claimed.
+
 ## 0.1.0 — development preview, 2026-10-19
 
 - Independent Python/Playwright Actor package and explicit module startup.

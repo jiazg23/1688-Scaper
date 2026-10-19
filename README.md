@@ -112,6 +112,9 @@ Apify Proxy defaults on and requires access; it does not guarantee site access.
 - `RUN_SUMMARY.json` — per-input status, pages, counts, errors and stop reasons.
 - `PARTIAL_RESULTS.json` — last saved page-level products, even before the final
   dataset write. This is a recovery snapshot, not automatic resume.
+- `FAILURE_01.json` (and subsequent input numbers) — stage, detection reason,
+  page title/host and card/control counts when a search fails. Full URLs, page
+  HTML, cookies, passwords and challenge tokens are not copied to this report.
 
 Dataset records are written once per product when collection ends. A hard
 platform timeout may interrupt the final dataset/CSV write; check the recovery
@@ -131,6 +134,20 @@ regional layouts, new-tab search behavior and image-result pagination still
 need live validation. The collector does not guess private endpoints to work
 around missing controls. Use only data and images you are authorized to process,
 and respect the site's terms and applicable requirements.
+
+### If the run says “verification”
+
+The first owner-reported keyword run reached browser startup but failed in the
+old access detector. That detector could falsely flag ordinary script references
+or hidden login UI. Version `0.1.1` fixes those reproducible cases and records
+the precise stage/reason; it does **not** bypass a genuine verification page.
+
+Rebuild from the latest `main` and inspect `FAILURE_01.json` plus
+`RUN_SUMMARY.json` if the same input still fails. `opening_homepage` versus
+`submitting_keyword`/`waiting_for_results` identifies where it stopped.
+`http_status` refers to the initial page navigation, not every later request;
+an HTTP 200 response can still display a verification page. Raising the Actor's
+overall processing-time limit does not resolve an active access challenge.
 
 ## API and MCP usage
 

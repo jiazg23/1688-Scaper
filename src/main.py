@@ -17,7 +17,7 @@ from .runner import Runner
 async def main():
     async with Actor:
         config = Config.parse(await Actor.get_input())
-        Actor.log.warning("Development build: selectors are fixture-tested, but live 1688 access, uploads and detail pages are NOT release-validated.")
+        Actor.log.warning(f"Development build {__version__}: selectors are fixture-tested, but live 1688 access, uploads and detail pages are NOT release-validated.")
         proxy = None
         if config.use_proxy:
             proxy_config = await Actor.create_proxy_configuration()
@@ -30,13 +30,16 @@ async def main():
         async def checkpoint(products, summary):
             await Actor.set_value("PARTIAL_RESULTS.json", products)
             await Actor.set_value("RUN_SUMMARY.json", summary)
+        async def on_failure(key, report):
+            await Actor.set_value(key, report)
+            Actor.log.warning(f"Collection failed at {report['stage']}: {report['error_code']}. Saved {key} in the key-value store.")
         runner = None
         try:
             async with async_playwright() as playwright:
                 browser = await playwright.chromium.launch(headless=True, proxy=proxy)
                 context = await browser.new_context()
                 try:
-                    runner = Runner(config, BrowserCollector(context), checkpoint)
+                    runner = Runner(config, BrowserCollector(context, on_failure=on_failure, log=Actor.log.info), checkpoint)
                     await runner.run()
                 finally:
                     await context.close()

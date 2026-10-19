@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
-from src.collector import next_page, wait_results
+from src.collector import guard_page, next_page, wait_results
 from src.parser import (CARD, KEYWORD, SEARCH, IMAGE_OPEN, IMAGE_INPUT, IMAGE_CONFIRM,
                         parse_search, CollectionError, AccessBlocked)
 
@@ -85,6 +85,16 @@ class OfflineBrowserTests(unittest.IsolatedAsyncioTestCase):
         await self.page.set_content('<title>安全验证</title><main>verification</main>')
         with self.assertRaises(AccessBlocked):
             await wait_results(self.page, timeout_seconds=1)
+
+    async def test_css_hidden_login_and_script_reference_are_not_blocked(self):
+        await self.page.set_content('<title>1688</title><style>.login-popup {display:none}</style><div class="login-popup"><input type=password></div><textarea class="cgf-search-input__input"></textarea><script>const reference="/_____tmd_____/punish";</script>')
+        signals = await guard_page(self.page)
+        self.assertFalse(signals["login_form"])
+
+    async def test_active_login_is_still_blocked(self):
+        await self.page.set_content('<form><input type=password></form>')
+        with self.assertRaises(AccessBlocked):
+            await guard_page(self.page)
 
 
 if __name__ == "__main__":

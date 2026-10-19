@@ -91,6 +91,13 @@ and reports the applicable published price tier for the buyer's order quantity.
   context; do not infer quantity tiers from color variants or unknown currency.
 - 2026-10-19: Expanded suite passed all 45 tests. All four Actor definition files
   pass Apify's published meta-schemas after adding detail fields.
+- 2026-10-19: Owner's first live keyword run starts successfully but fails in
+  the initial access detector. Its log cannot distinguish a real challenge from
+  a false positive. Reproduced and fixed script-reference/hidden-login false
+  positives offline; kept active access restrictions terminal.
+- 2026-10-19: Added versioned startup logs, per-input stage/reason reports in
+  FAILURE_NN.json and run-summary links, without page source or challenge tokens.
+  Expanded suite passes 59 tests. Live collection still needs owner evidence.
 - Remaining source requirement: actual quantity-tier examples if bulk quotes are
   desired, image-results pagination and confirmed search-tab behavior. Live access,
   fresh-session currency/language, deployment and pricing remain unvalidated.

@@ -4,7 +4,7 @@
 
 ## Confirmed locally
 
-- Complete local suite: **45 tests passed**, including five offline browser tests and
+- Complete local suite: **59 tests passed**, including seven offline browser tests and
   seven regression cases for the supplied real product-detail page.
 - Parsed all 60 unique product cards from the owner's supplied saved results.
 - First captured product: ID `1071313125369`, displayed price `3.84`, MOQ `2`,
@@ -20,9 +20,15 @@
   from unlabelled image assets or company names.
 - Offline tests cover validation, tier arithmetic, MOQ boundaries, ambiguity,
   exports, private image addresses, deduplication, per-image limits and recovery.
-- Five offline Chromium tests pass: actual supplied search/upload selectors,
+- Seven offline Chromium tests pass: actual supplied search/upload selectors,
   changed-card pagination, disabled Next, unchanged-product rejection and
-  terminal verification detection. All outgoing requests are aborted.
+  terminal verification detection, plus hidden/active login UI regression cases.
+  All outgoing requests are aborted.
+- Fixed locally reproduced false positives from SDK script references to challenge
+  paths and hidden login controls. Actual challenge URLs/titles/controls, standalone
+  verification configurations and visible login forms remain terminal errors.
+- Failure reports record stage and reason without raw page source, credentials
+  or challenge URL tokens; diagnostic-write errors do not replace the original error.
 - Startup import/default-input check, Python compilation and dependency check pass.
 - Actor, input, dataset and output definitions pass the published
   [Apify JSON schemas](https://github.com/apify-projects/actor-json-schemas).
@@ -38,7 +44,7 @@ These are saved-HTML/local tests, not live search results.
 | Acceptance case | Status |
 | --- | --- |
 | Linux container build and offline browser startup | Passed in GitHub Actions; not an actual Apify run |
-| Live keyword search returns relevant cards | Blocked by development browser site-safety policy |
+| Live keyword search returns relevant cards | Owner's first run failed in old access detector; actual cause needs new failure report |
 | Live second page and final-page detection | Control logic tested offline only |
 | Live image upload and image pagination | Selectors supplied; end-to-end unverified |
 | Live multi-image results with independent limits | Runner tested with synthetic batches only |
@@ -46,7 +52,8 @@ These are saved-HTML/local tests, not live search results.
 | Real quantity-price tiers | No source fixture; variant rows are not volume tiers |
 | Currency/language in a fresh Apify browser session | Unverified; no forced USD/translation |
 | Performance, proxy cost, commercial viability | Not measured |
-| Apify Actor created/published/monetized | Not performed |
+| Apify build/startup | Owner's supplied live log confirms startup under limited permissions |
+| Publishing/monetization | Not performed by this agent; current owner settings unverified |
 
 ## Initial access observations
 
@@ -55,6 +62,15 @@ verification redirects, not product records. The homepage alone was reachable.
 The browser's site-safety policy then rejected the challenge destination and
 1688 browser access. No CAPTCHA was solved and no alternate access route was
 used after that denial.
+
+## Owner-reported Apify run
+
+The October 19 log for build `HeWsquxXqMu3HdrwS` confirms successful container,
+SDK and browser startup, followed by an `AccessBlocked` classification. That log
+has no saved page evidence or specific detection reason, so it cannot establish
+whether the page was a genuine challenge or one of the detector's reproduced
+false positives. Version 0.1.1 adds precise stages and failure reports. No new
+live 1688 request was performed by the development agent to test this change.
 
 ## Release acceptance
 
