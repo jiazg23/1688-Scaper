@@ -1,0 +1,8 @@
+{
+  "searchMode": "search_urls",
+  "searchUrls": ["https://air.1688.com/kapp/1688-global/sales/search?keywords=hair%20dryer"],
+  "maxProductsPerSearchUrl": 50,
+  "maxPagesPerSearchUrl": 5,
+  "useApifyProxy": true,
+  "saveCsvFile": true
+}

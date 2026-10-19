@@ -12,9 +12,9 @@ class RunFailed(CollectionError):
 
 
 def input_specs(config):
-    values = {"keyword": config.terms, "urls": config.urls, "image": config.images}[config.mode]
+    values = {"keyword": config.terms, "image": config.images, "search_urls": config.search_urls}[config.mode]
     return [{"index": i, "kind": config.mode, "value": value,
-             "label": f"image_{i:02d}" if config.mode == "image" else value}
+             "label": f"image_{i:02d}" if config.mode == "image" else f"search_link_{i:02d}" if config.mode == "search_urls" else value}
             for i, value in enumerate(values, 1)]
 
 

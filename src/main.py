@@ -17,7 +17,7 @@ from .runner import Runner
 async def main():
     async with Actor:
         config = Config.parse(await Actor.get_input())
-        Actor.log.warning(f"Development build {__version__}: selectors are fixture-tested, but live 1688 access, uploads and detail pages are NOT release-validated.")
+        Actor.log.warning(f"Development build {__version__}: selectors are fixture-tested, but live search-link, keyword and image collection are NOT release-validated.")
         proxy = None
         if config.use_proxy:
             proxy_config = await Actor.create_proxy_configuration()

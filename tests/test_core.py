@@ -8,7 +8,7 @@ import unittest
 
 from jsonschema import Draft7Validator, validate
 
-from src.config import Config, InputError, product_url
+from src.config import Config, InputError, product_url, search_url
 from src.exports import csv_text, supplier_rows
 from src.images import image_type, resolve_public
 from src.parser import parse_search, parse_product, AccessBlocked, UnsupportedLayout
@@ -61,6 +61,32 @@ class InputTests(unittest.TestCase):
         for name in ["../foo.csv", "foo.json", "folder/a.csv", "a.csv\n", "1688_suppliers.csv"]:
             with self.assertRaises(InputError):
                 Config.parse({"csvFilename": name})
+
+    def test_search_results_link_preserves_filters_sort_and_page(self):
+        url = "https://air.1688.com/kapp/1688-global/sales/search?keywords=hair%20dryer&sort=price&page=3&filter=global"
+        self.assertEqual(search_url(url + "#section"), url)
+        config = Config.parse({"searchMode": "search_urls", "searchUrls": [url], "maxProductsPerSearchUrl": 12, "maxPagesPerSearchUrl": 2})
+        self.assertEqual(config.search_urls, [url])
+        self.assertEqual((config.max_products, config.max_pages), (12, 2))
+
+    def test_legacy_search_endpoint_supported(self):
+        url = "https://s.1688.com/selloffer/offer_search.htm?keywords=hinge&beginPage=2"
+        self.assertEqual(search_url(url), url)
+
+    def test_search_results_mode_requires_results_link(self):
+        for url in ["https://www.1688.com/", "https://detail.1688.com/offer/1071313125369.html", "https://login.taobao.com/member/login.jhtml", "https://air.1688.com/other?keywords=hinge", "https://air.1688.com/kapp/1688-global/sales/search", "https://user:pass@air.1688.com/kapp/1688-global/sales/search?keywords=hinge"]:
+            with self.subTest(url=url), self.assertRaises(InputError):
+                Config.parse({"searchMode": "search_urls", "searchUrls": [url]})
+        with self.assertRaises(InputError):
+            Config.parse({"searchMode": "search_urls"})
+
+    def test_individual_product_mode_and_field_are_removed(self):
+        schema = json.loads((ROOT / ".actor/INPUT_SCHEMA.json").read_text())
+        self.assertNotIn("urls", schema["properties"]["searchMode"]["enum"])
+        self.assertNotIn("productUrls", schema["properties"])
+        for raw in [{"searchMode": "urls"}, {"productUrls": ["1071313125369"]}]:
+            with self.assertRaises(InputError):
+                Config.parse(raw)
 
 
 class ParserTests(unittest.TestCase):
@@ -292,6 +318,17 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(products[0]["matched_inputs"]), 2)
         self.assertEqual([i["products"] for i in runner.summary["inputs"]], [2, 2])
         self.assertTrue(snapshots)
+
+    async def test_search_link_limits_are_separate_and_labels_do_not_copy_query(self):
+        urls = ["https://air.1688.com/kapp/1688-global/sales/search?keywords=first&page=2", "https://air.1688.com/kapp/1688-global/sales/search?keywords=second&page=3"]
+        batch = self.batch()
+        runner, collector, snapshots = await self.make({"searchMode": "search_urls", "searchUrls": urls, "maxProductsPerSearchUrl": 2}, [[batch], [batch]])
+        products = await runner.run()
+        self.assertEqual(collector.started, [1, 2])
+        self.assertEqual(len(products), 2)
+        self.assertEqual([i["products"] for i in runner.summary["inputs"]], [2, 2])
+        self.assertEqual(products[0]["matched_inputs"][0]["label"], "search_link_01")
+        self.assertNotIn("keywords=", json.dumps(snapshots))
 
     async def test_partial_pages_preserved(self):
         runner, _, snapshots = await self.make({}, [[self.batch(), UnsupportedLayout("next page changed")]])

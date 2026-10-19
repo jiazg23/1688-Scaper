@@ -1,13 +1,15 @@
 """Offline browser tests. All network requests are aborted before loading fixtures."""
 
 from pathlib import Path
+from contextlib import aclosing
 import unittest
 from unittest.mock import AsyncMock, patch
 
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
-from src.collector import guard_page, next_page, wait_results
+from src.collector import HOME, BrowserCollector, guard_page, next_page, wait_results
+from src.popups import dismiss_optional_login
 from src.parser import (CARD, KEYWORD, SEARCH, IMAGE_OPEN, IMAGE_INPUT, IMAGE_CONFIRM,
                         parse_search, CollectionError, AccessBlocked)
 
@@ -95,6 +97,86 @@ class OfflineBrowserTests(unittest.IsolatedAsyncioTestCase):
         await self.page.set_content('<form><input type=password></form>')
         with self.assertRaises(AccessBlocked):
             await guard_page(self.page)
+
+    async def test_configured_homepage_is_exact_public_url(self):
+        self.assertEqual(HOME, "https://www.1688.com/")
+
+    async def test_keyword_results_can_open_in_a_new_tab(self):
+        await self.page.set_content((FIXTURES / "search-controls.html").read_text())
+        pages = []
+        self.page.on("popup", lambda popup: pages.append(popup))
+        async with self.page.expect_popup() as pending:
+            await self.page.evaluate("window.open('about:blank', '_blank')")
+        result_page = await pending.value
+        await result_page.set_content(self.card + self.pagination, wait_until="domcontentloaded")
+        selected = await wait_results(self.page, popup_pages=pages, timeout_seconds=1, baseline_ids=set())
+        self.assertEqual(selected, result_page)
+        self.assertEqual(len(parse_search(await selected.content())["products"]), 1)
+
+    async def test_same_tab_results_remain_supported(self):
+        await self.page.set_content(self.card + self.pagination)
+        self.assertEqual(await wait_results(self.page, timeout_seconds=1, baseline_ids=set()), self.page)
+
+    async def test_unchanged_homepage_cards_are_not_search_results(self):
+        await self.page.set_content(self.card)
+        old_ids = {parse_search(self.card)["products"][0]["product_id"]}
+        with patch("src.collector.asyncio.sleep", new=AsyncMock()):
+            with self.assertRaises(CollectionError):
+                await wait_results(self.page, timeout_seconds=1, baseline_ids=old_ids)
+
+    async def test_known_login_iframe_is_closed_with_its_x(self):
+        iframe = (FIXTURES / "login-iframe.html").read_text()
+        await self.page.set_content('<textarea class="cgf-search-input__input"></textarea><div role="dialog" aria-label="Login"><button aria-label="Close" onclick="this.parentElement.remove()">×</button>' + iframe + '</div>')
+        signals = await guard_page(self.page)
+        self.assertFalse(signals["login_form"])
+        self.assertEqual(await self.page.locator("#alibaba-login-box").count(), 0)
+        self.assertTrue(await self.page.locator(KEYWORD).is_visible())
+
+    async def test_visible_optional_password_dialog_is_closed(self):
+        await self.page.set_content('<textarea class="cgf-search-input__input"></textarea><div role="dialog"><h2>Sign in</h2><input type=password><button onclick="this.parentElement.remove()">Close</button></div>')
+        await guard_page(self.page)
+        self.assertEqual(await self.page.locator('input[type=password]').count(), 0)
+
+    async def test_login_iframe_without_close_control_is_not_removed(self):
+        iframe = (FIXTURES / "login-iframe.html").read_text()
+        await self.page.set_content('<textarea class="cgf-search-input__input"></textarea><div role="dialog" aria-label="Login">' + iframe + '</div>')
+        with self.assertRaises(AccessBlocked) as raised:
+            await guard_page(self.page)
+        self.assertEqual(raised.exception.code, "login_popup_close_missing")
+        self.assertEqual(await self.page.locator("#alibaba-login-box").count(), 1)
+
+    async def test_login_without_public_content_is_not_dismissed(self):
+        await self.page.set_content('<div role="dialog"><h2>Sign in</h2><input type=password><button onclick="this.parentElement.remove()">Close</button></div>')
+        self.assertFalse(await dismiss_optional_login(self.page))
+        with self.assertRaises(AccessBlocked):
+            await guard_page(self.page)
+        self.assertEqual(await self.page.get_by_role("dialog").count(), 1)
+
+    async def test_verification_dialog_is_not_dismissed(self):
+        await self.page.set_content('<textarea class="cgf-search-input__input"></textarea><div role="dialog" id="nc_1_wrapper"><h2>Sign in — CAPTCHA</h2><button onclick="this.parentElement.remove()">Close</button></div>')
+        with self.assertRaises(AccessBlocked):
+            await guard_page(self.page)
+        self.assertEqual(await self.page.locator("#nc_1_wrapper").count(), 1)
+
+    async def test_nonworking_close_does_not_allow_collection(self):
+        iframe = (FIXTURES / "login-iframe.html").read_text()
+        await self.page.set_content('<textarea class="cgf-search-input__input"></textarea><div role="dialog" aria-label="Login"><button aria-label="Close">×</button>' + iframe + '</div>')
+        with self.assertRaises(AccessBlocked) as raised:
+            await guard_page(self.page)
+        self.assertEqual(raised.exception.code, "login_popup_not_dismissed")
+
+    async def test_search_link_opens_requested_results_without_homepage(self):
+        url = "https://air.1688.com/kapp/1688-global/sales/search?keywords=hair%20dryer&page=3&sort=price"
+        async def load_fixture(target, **kwargs):
+            await self.page.set_content(self.card + self.pagination, wait_until="domcontentloaded")
+            response = type("Response", (), {"status": 200})()
+            return response
+        with patch.object(self.context, "new_page", new=AsyncMock(return_value=self.page)), patch.object(self.page, "goto", new=AsyncMock(side_effect=load_fixture)) as navigation:
+            collector = BrowserCollector(self.context)
+            async with aclosing(collector.pages({"index": 1, "kind": "search_urls", "value": url}, 1)) as pages:
+                batch = await anext(pages)
+                self.assertEqual(len(batch["products"]), 1)
+            navigation.assert_awaited_once_with(url, wait_until="domcontentloaded", timeout=45000)
 
 
 if __name__ == "__main__":

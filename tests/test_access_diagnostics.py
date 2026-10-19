@@ -35,6 +35,9 @@ class AccessDetectionTests(unittest.TestCase):
         with self.assertRaises(AccessBlocked) as raised:
             check_access('<form><input type=password></form>')
         self.assertEqual(raised.exception.code, "login_form")
+        with self.assertRaises(AccessBlocked) as redirect:
+            check_access('<textarea class="cgf-search-input__input"></textarea>', "https://login.taobao.com/member/login.jhtml")
+        self.assertEqual(redirect.exception.code, "login_url")
 
     def test_meta_redirect_still_stops(self):
         with self.assertRaises(AccessBlocked) as raised:

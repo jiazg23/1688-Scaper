@@ -10,6 +10,10 @@
   page-1 pagination fragment; irrelevant styling and tracking were removed.
 - Browser test event handlers are **synthetic**. They prove the collector can
   operate these controls and detect changed cards, not that live 1688 permits it.
+- `login-iframe.html` retains the owner's supplied `alibaba-login-box` iframe ID
+  and login endpoint. Session, tracking and redirect query parameters are removed.
+  Surrounding close buttons, popup events and new-tab result content in browser
+  tests are synthetic; the actual surrounding X markup has not been supplied.
 - `product-detail.html` is reduced from the owner's product-detail HTML supplied
   later the same day for offer 1071313125369. Visible title, main price, two
   color variants, stock metadata, MOQ promotion, attributes and supplier links

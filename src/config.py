@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 
 class InputError(ValueError):
@@ -24,6 +24,21 @@ def product_url(value: str) -> str:
     if not match:
         raise InputError("Use an HTTPS 1688 /offer/123456789.html product URL or an offer ID, not a search/store URL.")
     return f"https://detail.1688.com/offer/{match[1]}.html"
+
+
+def search_url(value: str) -> str:
+    """Preserve the query (keywords/filters/order/page) supplied by the user."""
+    try:
+        p = urlsplit(value.strip())
+        supported = ((p.hostname == "air.1688.com" and p.path.rstrip("/") == "/kapp/1688-global/sales/search")
+                     or (p.hostname == "s.1688.com" and p.path == "/selloffer/offer_search.htm"))
+        valid = (p.scheme == "https" and supported and p.port in {None, 443}
+                 and not p.username and not p.password and bool(p.query))
+    except ValueError:
+        valid = False
+    if not valid:
+        raise InputError("Paste the address of the 1688 tab showing product search results (air.1688.com/kapp/1688-global/sales/search?... or s.1688.com/selloffer/offer_search.htm?...), not the homepage, a login link, or an individual product link.")
+    return urlunsplit((p.scheme, p.netloc, p.path, p.query, ""))
 
 
 def string_list(raw: dict, key: str, limit: int, default=()) -> list[str]:
@@ -53,8 +68,8 @@ def boolean(raw: dict, key: str, default: bool) -> bool:
 class Config:
     mode: str
     terms: list[str]
-    urls: list[str]
     images: list[str]
+    search_urls: list[str]
     max_products: int
     max_pages: int
     quantity: int
@@ -71,12 +86,14 @@ class Config:
         if not isinstance(raw, dict):
             raise InputError("Actor input must be a JSON object.")
         mode = raw.get("searchMode", "keyword")
-        if mode not in {"keyword", "image", "urls"}:
-            raise InputError("searchMode must be keyword, image, or urls.")
+        if mode not in {"keyword", "image", "search_urls"}:
+            raise InputError("Choose search_urls, keyword, or image. Individual product URL mode has been removed; search_urls accepts pages of search-result cards.")
+        if raw.get("productUrls"):
+            raise InputError("Individual product URLs are no longer supported. Paste the link to a page of product search results into searchUrls and choose searchMode: search_urls.")
         terms = string_list(raw, "searchTerms", 20, ["hair dryer"] if mode == "keyword" else [])
         if any(len(t) > 500 for t in terms):
             raise InputError("Each product keyword must be at most 500 characters.")
-        urls = [product_url(u) for u in string_list(raw, "productUrls", 200)]
+        search_urls = list(dict.fromkeys(search_url(u) for u in string_list(raw, "searchUrls", 20)))
         images = list(dict.fromkeys(string_list(raw, "uploadedImages", 20) + string_list(raw, "imageUrls", 20)))
         if len(images) > 20:
             raise InputError("Upload fields and imageUrls share a combined limit of 20 images.")
@@ -88,18 +105,19 @@ class Config:
                 valid = False
             if not valid:
                 raise InputError("Images must be direct public HTTPS image URLs, not blob: URLs or website pages.")
-        if not {"keyword": terms, "urls": urls, "image": images}[mode]:
-            raise InputError(f"{mode} mode needs at least one matching keyword, product URL, or image.")
+        if not {"keyword": terms, "image": images, "search_urls": search_urls}[mode]:
+            if mode == "search_urls":
+                raise InputError("Search results links mode needs searchUrls. Search on 1688, copy the address from the new results tab, and paste it into Links to 1688 search results.")
+            raise InputError(f"{mode} mode needs at least one matching keyword or product image.")
         filename = raw.get("csvFilename", "1688_products.csv")
         if not isinstance(filename, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.csv", filename):
             raise InputError("csvFilename must be a simple filename ending in .csv (letters, numbers, dots, underscores, hyphens).")
         if filename.lower() == "1688_suppliers.csv":
             raise InputError("1688_suppliers.csv is reserved for the supplier shortlist. Choose another product filename.")
-        return cls(
-            mode, terms, list(dict.fromkeys(urls)), images,
-            integer(raw, "maxProductsPerImage" if mode == "image" else "maxProductsPerKeyword", 50, 1000),
-            integer(raw, "maxPagesImage" if mode == "image" else "maxPagesText", 5, 100),
-            integer(raw, "orderQuantity", 100, 10000000),
-            boolean(raw, "useApifyProxy", True), boolean(raw, "saveCsvFile", True), filename,
-            boolean(raw, "failOnNoResults", False), boolean(raw, "skipFailedImages", True),
-        )
+        product_limit = {"image": "maxProductsPerImage", "search_urls": "maxProductsPerSearchUrl"}.get(mode, "maxProductsPerKeyword")
+        page_limit = {"image": "maxPagesImage", "search_urls": "maxPagesPerSearchUrl"}.get(mode, "maxPagesText")
+        return cls(mode=mode, terms=terms, images=images, search_urls=search_urls,
+                   max_products=integer(raw, product_limit, 50, 1000), max_pages=integer(raw, page_limit, 5, 100),
+                   quantity=integer(raw, "orderQuantity", 100, 10000000),
+                   use_proxy=boolean(raw, "useApifyProxy", True), save_csv=boolean(raw, "saveCsvFile", True), csv_filename=filename,
+                   strict=boolean(raw, "failOnNoResults", False), skip_failed_images=boolean(raw, "skipFailedImages", True))

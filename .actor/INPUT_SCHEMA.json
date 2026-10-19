@@ -1,24 +1,176 @@
 {
   "schemaVersion": 1,
   "title": "1688 Product & Supplier Finder — development preview",
-  "description": "Development build, not yet live-validated. Select one mode and complete its matching inputs. All modes use a new isolated browser, not your signed-in Chrome session. 1688 may require verification; the Actor stops instead of bypassing it. Configure runtime and cost limits in Apify's native Run options.",
+  "description": "Collect product cards from 1688 search results. Choose how to start below. The Actor uses its own browser; your personal browser login is not copied. Live access is still being tested.",
   "type": "object",
   "properties": {
-    "searchMode": {"title": "Search mode", "type": "string", "editor": "select", "enum": ["keyword", "image", "urls"], "enumTitles": ["Keyword product search (preview)", "Image product search (preview)", "Direct product URLs (preview)"], "default": "keyword", "description": "Keyword/image controls match supplied global-page HTML. Direct URL mode parses captured 1688 detail-page markup or identity-matched Product JSON-LD. None of these flows has passed live acceptance yet."},
-    "searchTerms": {"title": "Product search keywords", "type": "array", "editor": "stringList", "items": {"type": "string", "minLength": 1, "maxLength": 500}, "maxItems": 20, "default": ["hair dryer"], "prefill": ["hair dryer"], "description": "Used only for Keyword product search. One product query per row. Explicitly clearing all keywords produces a validation error; omitted keywords use this example.", "sectionCaption": "Keyword product search"},
-    "maxProductsPerKeyword": {"title": "Maximum products per keyword", "type": "integer", "minimum": 1, "maximum": 1000, "default": 50, "description": "A separate product limit for each keyword, not the full batch. This limits products, not unique suppliers."},
-    "maxPagesText": {"title": "Maximum pages per keyword", "type": "integer", "minimum": 1, "maximum": 100, "default": 5, "description": "Click Next page until this limit, the product target, or the verified last page. The Actor checks that product IDs actually change."},
-    "uploadedImages": {"title": "Upload product images", "type": "array", "editor": "fileupload", "items": {"type": "string"}, "maxItems": 20, "prefill": [], "description": "Image mode only. PNG, JPEG or WebP, at most 10 MB each. Each image is searched separately. Uploads and image URLs share a combined limit of 20 images. Upload/search selectors are implemented but the live upload flow remains unverified.", "sectionCaption": "Image product search"},
-    "imageUrls": {"title": "Public product image URLs", "type": "array", "editor": "stringList", "items": {"type": "string", "pattern": "^https://", "maxLength": 2048}, "maxItems": 20, "prefill": [], "description": "Image mode only. Direct HTTPS links to PNG, JPEG or WebP image files, not product pages, search pages, blob: links or Markdown links. Sources must be publicly reachable. Files are uploaded to 1688 for the requested image search."},
-    "maxProductsPerImage": {"title": "Maximum products per image", "type": "integer", "minimum": 1, "maximum": 1000, "default": 50, "description": "Reset separately for each image. Repeated products count toward each image's limit but appear once in the final dataset, with all matching image labels."},
-    "maxPagesImage": {"title": "Maximum pages per image", "type": "integer", "minimum": 1, "maximum": 100, "default": 5, "description": "Separate page limit for each image. The supplied pagination markup must also be present on image results; that remains to be verified."},
-    "productUrls": {"title": "1688 product URLs or offer IDs", "type": "array", "editor": "stringList", "items": {"type": "string", "maxLength": 2048}, "maxItems": 200, "prefill": [], "description": "Direct URL mode only. Paste https://detail.1688.com/offer/123456789.html or an offer ID, not a storefront/search URL. Extract visible detail prices, color variants, stock, attributes and supplier links. Login-gated details are marked partial; full specifications and bulk tiers are not guaranteed.", "sectionCaption": "Direct product URLs"},
-    "orderQuantity": {"title": "Order quantity for MOQ checks", "type": "integer", "minimum": 1, "maximum": 10000000, "default": 100, "description": "Flags quantities below the displayed MOQ. Search-card prices are indicative and do not establish variant prices or volume tiers. No bulk subtotal is calculated from a search-card price.", "sectionCaption": "Run settings"},
-    "useApifyProxy": {"title": "Use Apify Proxy", "type": "boolean", "default": true, "description": "Use your configured Apify Proxy for normal site browsing. Requires proxy access and may incur charges. Does not solve verification or guarantee access. No proxy/identity rotation is performed after access is denied."},
-    "skipFailedImages": {"title": "Continue after a failed image", "type": "boolean", "default": true, "description": "Image mode only. Continue after download/layout errors and preserve earlier products. A verification/access-denied response stops the whole batch regardless of this setting."},
-    "failOnNoResults": {"title": "Strict failure mode", "type": "boolean", "default": false, "description": "When enabled, stop on the first input error. When disabled, keep valid results from other inputs and mark partial runs. Runs with no products always fail; an unknown or blocked layout is never reported as a successful empty search."},
-    "saveCsvFile": {"title": "Save product and supplier CSV files", "type": "boolean", "default": true, "description": "Save a product CSV and 1688_suppliers.csv in the run's key-value store. Dataset records and progress snapshots are separate from these files.", "sectionCaption": "CSV export"},
-    "csvFilename": {"title": "Product CSV filename", "type": "string", "editor": "textfield", "default": "1688_products.csv", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\\.csv$", "description": "Simple .csv filename. The supplier shortlist uses 1688_suppliers.csv. No additional supplier dataset records are created."}
+    "searchMode": {
+      "title": "How would you like to search?",
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "search_urls",
+        "keyword",
+        "image"
+      ],
+      "enumTitles": [
+        "Search results links — paste from 1688",
+        "Keyword search — enter product names",
+        "Image search — upload a product photo"
+      ],
+      "default": "keyword",
+      "description": "Already found products on 1688? Choose Search results links and paste the address from the new tab showing those product cards. Choose Keyword search to enter product names, or Image search to use photos. Individual product links are not supported."
+    },
+    "searchUrls": {
+      "title": "Links to 1688 search results",
+      "type": "array",
+      "editor": "stringList",
+      "items": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2048
+      },
+      "maxItems": 20,
+      "prefill": [],
+      "description": "Search results links only. Open 1688, search for a product and choose your filters. Copy the address from the NEW TAB showing the product cards, then paste it here, one link per line. Use the results-page link — not the homepage, a login/iframe link or a single product link. Your query, filters, sorting and starting page are preserved.",
+      "sectionCaption": "Search results links"
+    },
+    "maxProductsPerSearchUrl": {
+      "title": "Products to collect per search link",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 50,
+      "description": "Maximum unique products to collect separately from each results link. A product repeated across links appears once in the final dataset."
+    },
+    "maxPagesPerSearchUrl": {
+      "title": "Pages to check per search link",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 5,
+      "description": "Start at the page in your copied link, then click Next page. Stop when this page limit, your product target or the last available page is reached."
+    },
+    "searchTerms": {
+      "title": "Product names to search for",
+      "type": "array",
+      "editor": "stringList",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      },
+      "maxItems": 20,
+      "default": [
+        "hair dryer"
+      ],
+      "prefill": [
+        "hair dryer"
+      ],
+      "description": "Keyword search only. Enter one product name per line, such as hair dryer. Replace the example with your products. This field is ignored in Search results links and Image search.",
+      "sectionCaption": "Keyword search"
+    },
+    "maxProductsPerKeyword": {
+      "title": "Products to collect per keyword",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 50,
+      "description": "Separate product limit for each product name, not for the whole run."
+    },
+    "maxPagesText": {
+      "title": "Pages to check per keyword",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 5,
+      "description": "Maximum result pages for each keyword. The Actor follows the new results tab and checks that Next page loads different products."
+    },
+    "uploadedImages": {
+      "title": "Upload product photos",
+      "type": "array",
+      "editor": "fileupload",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "prefill": [],
+      "description": "Image search only. Clear PNG, JPEG or WebP photos, at most 10 MB each. Each photo is searched separately. Uploads and image links share a total limit of 20 photos.",
+      "sectionCaption": "Image search"
+    },
+    "imageUrls": {
+      "title": "Links to product image files",
+      "type": "array",
+      "editor": "stringList",
+      "items": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2048
+      },
+      "maxItems": 20,
+      "prefill": [],
+      "description": "Image search only. Direct HTTPS links to PNG, JPEG or WebP files. Do not paste search-results links, individual product links, blob: links or Markdown. These images are uploaded to 1688 for your search."
+    },
+    "maxProductsPerImage": {
+      "title": "Products to collect per photo",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 50,
+      "description": "Reset separately for each image. Repeated products count toward each image's limit but appear once in the final dataset, with all matching image labels."
+    },
+    "maxPagesImage": {
+      "title": "Pages to check per photo",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 5,
+      "description": "Separate page limit for each image. The supplied pagination markup must also be present on image results; that remains to be verified."
+    },
+    "orderQuantity": {
+      "title": "How many items do you plan to order?",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000000,
+      "default": 100,
+      "description": "Flags products whose displayed minimum order quantity (MOQ) is above your planned quantity. Card prices are not confirmed bulk-order quotes.",
+      "sectionCaption": "Run settings"
+    },
+    "useApifyProxy": {
+      "title": "Use Apify Proxy",
+      "type": "boolean",
+      "default": true,
+      "description": "Use your configured Apify Proxy for normal site browsing. Requires proxy access and may incur charges. Does not solve verification or guarantee access. No proxy/identity rotation is performed after access is denied."
+    },
+    "skipFailedImages": {
+      "title": "Continue if a photo fails",
+      "type": "boolean",
+      "default": true,
+      "description": "Image mode only. Continue after download/layout errors and preserve earlier products. A verification/access-denied response stops the whole batch regardless of this setting."
+    },
+    "failOnNoResults": {
+      "title": "Stop on the first search error",
+      "type": "boolean",
+      "default": false,
+      "description": "Turn on to stop at the first error. Turn off to preserve valid results from other inputs and report a partial run. Runs with no products always fail. Real verification/access-denied screens always stop the run."
+    },
+    "saveCsvFile": {
+      "title": "Save CSV download files",
+      "type": "boolean",
+      "default": true,
+      "description": "Save a product CSV and 1688_suppliers.csv in Storage → Key-value store. The structured dataset and run-summary files are separate.",
+      "sectionCaption": "CSV downloads"
+    },
+    "csvFilename": {
+      "title": "Product CSV filename",
+      "type": "string",
+      "editor": "textfield",
+      "default": "1688_products.csv",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\\.csv$",
+      "description": "Simple .csv filename. The supplier shortlist uses 1688_suppliers.csv. No additional supplier dataset records are created."
+    }
   },
-  "required": ["searchMode"]
+  "required": [
+    "searchMode"
+  ]
 }

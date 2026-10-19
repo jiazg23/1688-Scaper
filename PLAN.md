@@ -2,9 +2,10 @@
 
 ## Goal
 
-Build an independent Apify Actor for 1688 sourcing. The first release accepts
-product URLs/offer IDs and keyword searches, extracts product and supplier data,
-and reports the applicable published price tier for the buyer's order quantity.
+Build an independent Apify Actor for 1688 sourcing. The current preview accepts
+copied search-results links, keywords and product images, extracts search-card
+product/supplier data, and preserves pricing context without inventing a quote.
+Individual product URL mode was removed at the owner's request.
 
 ## 1. Verify access and real data — saved search data verified; live access blocked
 
@@ -15,7 +16,7 @@ and reports the applicable published price tier for the buyer's order quantity.
 
 ## 2. Implement the collection and sourcing logic — preview implemented
 
-- Normalize supported 1688 offer URLs/IDs and search inputs.
+- Validate copied search-results URLs and search inputs without discarding filters.
 - Implement a target-specific collector, bounded retries and optional Apify Proxy.
 - Extract source-backed product IDs, titles, URLs, images, observed currencies, MOQ,
   quantity-price tiers and available supplier information.
@@ -33,7 +34,7 @@ and reports the applicable published price tier for the buyer's order quantity.
 - Image controls are now implemented from supplied selectors and explicitly
   labelled preview/unverified; do not advertise them as a verified public feature.
 
-## 4. Verify behavior — offline tests pass; live/container acceptance pending
+## 4. Verify behavior — offline tests/container checks pass; live acceptance pending
 
 - Test URL validation, tier boundaries, MOQ, missing/variant prices and deduplication.
 - Test pagination, block/login detection, partial failures and export consistency.
@@ -51,7 +52,7 @@ and reports the applicable published price tier for the buyer's order quantity.
 
 ## Release acceptance
 
-- Product URL mode returns real source-backed records.
+- Search-results links collect the user's selected product cards and retain filters.
 - Keyword mode returns relevant records and actually follows pagination.
 - Requested-quantity prices agree with source tiers and do not conceal MOQ limits.
 - Invalid or blocked inputs do not masquerade as successful product collection.
@@ -98,6 +99,13 @@ and reports the applicable published price tier for the buyer's order quantity.
 - 2026-10-19: Added versioned startup logs, per-input stage/reason reports in
   FAILURE_NN.json and run-summary links, without page source or challenge tokens.
   Expanded suite passes 59 tests. Live collection still needs owner evidence.
-- Remaining source requirement: actual quantity-tier examples if bulk quotes are
-  desired, image-results pagination and confirmed search-tab behavior. Live access,
-  fresh-session currency/language, deployment and pricing remain unvalidated.
+- 2026-10-19: Owner failure report identifies a full-page login redirect at
+  opening_homepage. The owner also supplied the optional login iframe and
+  confirmed keyword search opens a new results tab. Added normal close-control
+  dismissal and tab-following logic; full-page login/verification remain terminal.
+- 2026-10-19: Added Search results links mode with preserved query/filter/order
+  and start page. Removed individual product URL mode and its example. Clarified
+  visible input labels. Expanded offline suite passes 75 tests.
+- Remaining source requirements: actual optional-popup X wrapper, image-results
+  pagination and quantity tiers if future bulk quotes are desired. Live access,
+  fresh-session currency/language and pricing remain unvalidated.
