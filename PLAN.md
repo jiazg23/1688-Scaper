@@ -27,10 +27,11 @@ country/session per run. Do not retry access denials with a different identity.
 
 ## Verified offline
 
-92 regression tests pass, including 29 local browser tests and seven mocked
+98 regression tests pass, including 35 local browser tests and seven mocked
 proxy tests. Saved source HTML supports 60 product cards and the provided
 detail page. No test contacts 1688 or creates paid proxy traffic.
-Actor definitions and container startup are validated before delivery.
+Actor definitions and local startup are checked; current Docker CI completion
+must be confirmed separately from offline tests.
 
 ## Historical decisions
 
@@ -51,6 +52,9 @@ Actor definitions and container startup are validated before delivery.
 - Version 0.2.1 selects usable known controls instead of the first DOM match
   and records bounded, value-free search-control metadata on entry failures.
   Regional-layout adaptation still requires evidence from the actual failed page.
+- The next failure inventory supplied exact domestic homepage control attributes.
+  Version 0.2.2 adds that input/button pair and six offline regressions. Domestic
+  result-card/pagination markup and end-to-end live acceptance remain missing.
 
 ## Remaining work / release gate
 

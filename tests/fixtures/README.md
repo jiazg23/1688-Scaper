@@ -1,5 +1,10 @@
 # Fixture provenance
 
+- `domestic-search-controls.html` is a minimal reconstruction of the visible
+  textarea/button attributes in the owner's FAILURE_01 (3).json, October 19, 2026.
+  Button text is synthetic. No parent structure or domestic result DOM was
+  supplied. Simulated result transitions reuse the earlier global card fixture;
+  they do not establish support for domestic result cards or live access.
 - `search-controls.html` and `search-results.html` come from the owner's saved
   1688 global-page HTML supplied on October 19, 2026. All 60 product wrappers
   are retained. SVGs, scripts, tracking tokens and unrelated attributes were

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.2 — development preview, 2026-10-19
+
+- Add domestic homepage keyword entry using the textarea ID/name and exact
+  search-button class observed in the owner's latest failure inventory.
+- Pair each supported input with its own layout's search button; preserve
+  usable-control checks, diagnostics and terminal login/verification behavior.
+- 98 offline tests pass, including six new domestic-control regressions.
+  The minimal control fixture is reconstructed from metadata, not a full capture.
+- Domestic results and pagination remain unverified and without a supplied fixture.
+  Successful live collection is not claimed; exact button-class changes fail explicitly.
+
 ## 0.2.1 — development preview, 2026-10-19
 
 - Select visible, enabled/editable known keyword controls and search buttons,

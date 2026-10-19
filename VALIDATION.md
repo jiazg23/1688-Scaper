@@ -1,10 +1,10 @@
 # Validation status — October 19, 2026
 
-**Version 0.2.1 — development preview, not production-validated.**
+**Version 0.2.2 — development preview, not production-validated.**
 
 ## Confirmed offline
 
-- **92 tests pass:** 44 core/parser/input/runner tests, 29 local Chromium tests,
+- **98 tests pass:** 44 core/parser/input/runner tests, 35 local Chromium tests,
   12 access-diagnostic tests and seven mocked proxy-configuration tests.
 - The form exposes keywords and numeric Offer IDs, not a mode dropdown.
   IDs take priority even when the example keyword is still filled.
@@ -33,6 +33,11 @@
   the first DOM match. Hidden/read-only copies, open shadow roots, unknown
   controls and sanitized failure inventories are regression-tested. Actual form
   values, passwords, event handlers, scripts and URLs are not exported by the inventory.
+- The domestic input/button attributes from FAILURE_01 (3).json are recognized
+  and paired separately from global controls. Offline regressions cover entry,
+  submission, hidden global copies, unrelated buttons, changed-class rejection
+  and visible verification. Result transitions use the old global card fixture;
+  these are not domestic result-parser tests.
 - Login/verification and HTTP 401/403/429 remain terminal across the batch.
   Optional login closure requires a real close control and usable public content.
 - Local Chromium tests abort all outgoing network requests; proxy tests mock the
@@ -42,10 +47,11 @@
 
 Startup imports/default input and Python compilation pass locally. The four
 Actor definition files are checked against Apify's published schemas before
-upload. GitHub Actions builds the Linux Docker image and checks container imports
+upload. GitHub Actions is configured to build the Linux Docker image and check container imports
 and Chromium startup with container networking disabled.
 
-These are build/offline checks, not live site-collection acceptance.
+Current Docker CI completion must be checked separately; earlier 0.2.x jobs were
+queued at delivery. These are build/offline checks, not live site acceptance.
 
 ## Live evidence and remaining acceptance
 
@@ -56,8 +62,9 @@ These are build/offline checks, not live site-collection acceptance.
 | Search-link mode in version 0.1.2 | Owner run detected a visible verification frame; mode is now removed |
 | Residential proxy configuration | Owner's HK run initialized and fetched the homepage; actual exit-IP geolocation and CN access unverified |
 | HK keyword run in 0.2.0 | Reached HTTP-200 homepage, then timed out at entering_keyword; known input absent from captured main HTML |
-| Successful live keyword and second-page collection in 0.2.1 | Not tested |
-| Successful live Offer ID collection in 0.2.1 | Not tested |
+| HK keyword run in 0.2.1 | Failure inventory identifies domestic input and button, both visible and usable |
+| Successful live keyword and second-page collection in 0.2.2 | Not tested; domestic result layout not supplied |
+| Successful live Offer ID collection in 0.2.2 | Not tested |
 | Exact optional-popup X wrapper | Not supplied; test wrappers are synthetic |
 | Real quantity-price tiers | No source fixture; not connected |
 | Current relevance, speed, proxy traffic cost and success rate | Not measured |
@@ -69,12 +76,12 @@ The subsequent search-link log reports verification_frame. Neither establishes
 that every manual visitor needs an account; both show this Actor's earlier
 browser sessions failed before collection.
 
-The newer `FAILURE_01 (2).json` records www.1688.com, title 阿里1688首页,
-HTTP 200, stage entering_keyword and keyword_input_present false. This is not
-the earlier top-level login error. The limited report cannot distinguish a
-different regional control from an incomplete app load or shadow-DOM state.
-Version 0.2.1 adds bounded control inventories for that evidence; it does not
-claim a newly observed regional parser or a successful live fix.
+The newer `FAILURE_01 (3).json` records www.1688.com, title 阿里1688首页,
+HTTP 200 and stage entering_keyword. Its inventory identifies the domestic
+textarea ID/name and exact button class now supported in 0.2.2. This resolves
+the observed selector mismatch offline, not the end-to-end live release gate.
+No domestic result HTML was supplied. The exact captured button class may change
+with a website deployment; unknown buttons are not guessed.
 
 ## Development access limitation
 

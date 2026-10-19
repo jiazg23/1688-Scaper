@@ -14,8 +14,17 @@ from .pricing import decimal_text
 
 CARD = ".cgf-sale-product-list-card-wrapper[data-offerid]"
 NEXT = ".cgf-sale-pagination-next"
-KEYWORD = "textarea.cgf-search-input__input"
+GLOBAL_KEYWORD = "textarea.cgf-search-input__input"
 SEARCH = 'button[data-tracker="textSearch.search"]'
+# Domestic homepage controls observed in the owner's FAILURE_01 (3).json.
+# Keep each input paired with its own button; do not click another layout's UI.
+DOMESTIC_KEYWORD = 'textarea#alisearch-input[name="keywords"]'
+DOMESTIC_SEARCH = "button.searchBtn--bnk9giWe"
+SEARCH_LAYOUTS = (
+    ("global", GLOBAL_KEYWORD, SEARCH),
+    ("domestic", DOMESTIC_KEYWORD, DOMESTIC_SEARCH),
+)
+KEYWORD = ", ".join(layout[1] for layout in SEARCH_LAYOUTS)
 
 
 class CollectionError(RuntimeError):

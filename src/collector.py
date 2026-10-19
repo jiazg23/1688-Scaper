@@ -12,7 +12,7 @@ from playwright.async_api import Error as BrowserError, TimeoutError as BrowserT
 from .config import product_url
 from .diagnostics import capture_failure
 from .popups import LOGIN_FRAME, dismiss_optional_login, is_login_url
-from .parser import (CARD, NEXT, KEYWORD, SEARCH, AccessBlocked, CollectionError,
+from .parser import (CARD, NEXT, KEYWORD, SEARCH_LAYOUTS, AccessBlocked, CollectionError,
                      UnsupportedLayout, check_access, check_http_status, parse_search, parse_product)
 
 HOME = "https://www.1688.com/"
@@ -36,11 +36,21 @@ async def ready_control(page, selector, kind, *, editable=False, timeout_seconds
             break
         await asyncio.sleep(0.5)
     error = UnsupportedLayout(
-        f"No usable {kind.replace('_', ' ')} matched the supplied global-page layout. "
+        f"No usable {kind.replace('_', ' ')} matched a supported homepage layout. "
         "Inspect the search_controls and search_buttons in the failure report; "
         "a different regional layout or incomplete page load may be responsible.")
     error.code = f"{kind}_unavailable"
     raise error
+
+
+async def keyword_controls(page, *, timeout_seconds=30):
+    """Return a usable input and only that observed layout's submit selector."""
+    keyword = await ready_control(page, KEYWORD, "keyword_control", editable=True,
+                                  timeout_seconds=timeout_seconds)
+    for name, input_selector, button_selector in SEARCH_LAYOUTS:
+        if await keyword.evaluate("(node, selector) => node.matches(selector)", input_selector):
+            return keyword, button_selector, name
+    raise UnsupportedLayout("The keyword control changed before its layout could be identified.")
 
 
 async def guard_page(page):
@@ -199,10 +209,12 @@ class BrowserCollector:
                 raise CollectionError(f"1688 home page returned HTTP {response.status}.")
             baseline_ids = set(await page.locator(CARD).evaluate_all("nodes => nodes.map(n => n.dataset.offerid)"))
             progress("entering_keyword")
-            keyword = await ready_control(page, KEYWORD, "keyword_control", editable=True)
+            keyword, search_selector, layout = await keyword_controls(page)
+            if self.log:
+                self.log(f"Using the observed {layout} homepage search controls.")
             await keyword.fill(spec["value"], timeout=5000)
             progress("submitting_keyword")
-            search = await ready_control(page, SEARCH, "search_button")
+            search = await ready_control(page, search_selector, "search_button")
             await search.click(timeout=5000)
             progress("waiting_for_results")
             source_page = page

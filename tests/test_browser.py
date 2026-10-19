@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
-from src.collector import HOME, BrowserCollector, guard_page, next_page, wait_results, wait_product, ready_control
+from src.collector import HOME, BrowserCollector, guard_page, next_page, wait_results, wait_product, ready_control, keyword_controls
 from src.diagnostics import search_control_report, capture_failure
 from src.popups import dismiss_optional_login
 from src.parser import (CARD, KEYWORD, SEARCH,
@@ -54,6 +54,44 @@ class OfflineBrowserTests(unittest.IsolatedAsyncioTestCase):
         await self.page.set_content('<button data-tracker="textSearch.search" hidden>Search</button><button data-tracker="textSearch.search" id="usable">Search</button>')
         control = await ready_control(self.page, SEARCH, "search_button", timeout_seconds=0)
         self.assertEqual(await control.get_attribute("id"), "usable")
+
+    async def test_reported_domestic_controls_are_recognized_and_editable(self):
+        await self.page.set_content((FIXTURES / "domestic-search-controls.html").read_text())
+        control, selector, layout = await keyword_controls(self.page, timeout_seconds=0)
+        await control.fill("Hair dryer")
+        self.assertEqual(await control.input_value(), "Hair dryer")
+        self.assertEqual(layout, "domestic")
+        self.assertEqual(await self.page.locator(selector).count(), 1)
+        report = await search_control_report(self.page)
+        self.assertTrue(report["search_controls"][0]["known_keyword_match"])
+
+    async def test_domestic_input_does_not_select_unrelated_global_button(self):
+        await self.page.set_content((FIXTURES / "domestic-search-controls.html").read_text()
+                                    + '<button data-tracker="textSearch.search">Search</button>')
+        _, selector, _ = await keyword_controls(self.page, timeout_seconds=0)
+        control = await ready_control(self.page, selector, "search_button", timeout_seconds=0)
+        self.assertEqual(await control.get_attribute("class"), "searchBtn--bnk9giWe")
+
+    async def test_hidden_global_input_does_not_override_domestic_pair(self):
+        await self.page.set_content('<textarea class="cgf-search-input__input" hidden></textarea>'
+                                    + (FIXTURES / "domestic-search-controls.html").read_text())
+        control, _, layout = await keyword_controls(self.page, timeout_seconds=0)
+        self.assertEqual(layout, "domestic")
+        self.assertEqual(await control.get_attribute("id"), "alisearch-input")
+
+    async def test_changed_domestic_button_fails_without_guessing(self):
+        await self.page.set_content((FIXTURES / "domestic-search-controls.html").read_text()
+                                    .replace("searchBtn--bnk9giWe", "unrecognized-button"))
+        _, selector, _ = await keyword_controls(self.page, timeout_seconds=0)
+        with self.assertRaises(CollectionError) as raised:
+            await ready_control(self.page, selector, "search_button", timeout_seconds=0)
+        self.assertEqual(raised.exception.code, "search_button_unavailable")
+
+    async def test_domestic_control_does_not_override_visible_verification(self):
+        await self.page.set_content((FIXTURES / "domestic-search-controls.html").read_text()
+                                    + '<div id="nc_1_wrapper">Verify</div>')
+        with self.assertRaises(AccessBlocked):
+            await keyword_controls(self.page, timeout_seconds=0)
 
     async def test_missing_global_control_returns_specific_layout_error(self):
         await self.page.set_content('<title>阿里1688首页</title><input id="other-search" placeholder="搜索商品"><button>搜索</button>')
@@ -256,11 +294,19 @@ class OfflineBrowserTests(unittest.IsolatedAsyncioTestCase):
                 opening.assert_not_awaited()
 
     async def test_keyword_collector_submits_input_and_reads_next_page(self):
+        await self.check_keyword_collector("search-controls.html", "textarea.cgf-search-input__input", SEARCH)
+
+    async def test_domestic_keyword_collector_submits_and_reads_saved_global_results(self):
+        # Result transition is simulated with the existing global card fixture.
+        # This proves control wiring, not domestic result-parser acceptance.
+        await self.check_keyword_collector("domestic-search-controls.html", "#alisearch-input", "button.searchBtn--bnk9giWe")
+
+    async def check_keyword_collector(self, fixture, input_selector, button_selector):
         async def load_home(target, **kwargs):
-            await self.page.set_content((FIXTURES / "search-controls.html").read_text(), wait_until="domcontentloaded")
-            await self.page.evaluate("""(results) => {
-                document.querySelector('button[data-tracker="textSearch.search"]').onclick = () => {
-                    window.submittedKeyword = document.querySelector('textarea.cgf-search-input__input').value;
+            await self.page.set_content((FIXTURES / fixture).read_text(), wait_until="domcontentloaded")
+            await self.page.evaluate("""({results, inputSelector, buttonSelector}) => {
+                document.querySelector(buttonSelector).onclick = () => {
+                    window.submittedKeyword = document.querySelector(inputSelector).value;
                     document.body.innerHTML = results;
                     document.querySelector('.cgf-sale-pagination-next').onclick = () => {
                         document.querySelector('[data-offerid]').dataset.offerid = '999999999999';
@@ -268,7 +314,8 @@ class OfflineBrowserTests(unittest.IsolatedAsyncioTestCase):
                         document.querySelector('.cgf-sale-pagination-next').disabled = true;
                     };
                 };
-            }""", self.card + self.pagination)
+            }""", {"results": self.card + self.pagination, "inputSelector": input_selector,
+                   "buttonSelector": button_selector})
             return type("Response", (), {"status": 200})()
         with patch.object(self.context, "new_page", new=AsyncMock(return_value=self.page)), patch.object(self.page, "goto", new=AsyncMock(side_effect=load_home)) as navigation:
             collector = BrowserCollector(self.context)

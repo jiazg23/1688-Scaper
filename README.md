@@ -5,7 +5,8 @@ Collect source-backed product and supplier information from **keywords** or
 
 > **Development preview — live access is not release-validated.** Earlier owner
 > runs encountered full-page login and verification responses. The latest HK
-> run reached the homepage but failed at keyword entry. No successful live
+> run reached a domestic homepage whose search controls are supported in 0.2.2.
+> The new control adapter is tested offline only. No successful live
 > product collection is established by the offline tests or container startup.
 
 ## 🔎 Two ways to start
@@ -146,7 +147,7 @@ and `search_buttons`: bounded IDs/classes, public control attributes, visibility
 read-only state and open-shadow-root metadata. **Form values are not collected.**
 `keyword_control_unavailable` identifies a missing/unusable known search box;
 it is distinct from a login redirect. Send this report when a regional homepage
-does not match the supplied global-page controls. Unknown controls are reported,
+does not match either supported homepage layout. Unknown controls are reported,
 not clicked speculatively.
 
 Products are written once per product to the dataset when collection ends.
@@ -164,14 +165,18 @@ usable public content remains behind it. A full-page login redirect or genuine
 verification screen stops the batch and preserves earlier collected products.
 
 The owner's subsequent HK run reached the public homepage (HTTP 200, title
-`阿里1688首页`) and then timed out at keyword entry, with no known global-page
-input in the captured main HTML. A regional layout difference, an unready
-component or shadow/hidden control needs actual control evidence to distinguish.
-The collector now selects a usable known control rather than its first DOM match.
+`阿里1688首页`). Its newer failure inventory identifies a visible editable
+`textarea#alisearch-input[name="keywords"]` and `button.searchBtn--bnk9giWe`,
+not the earlier global controls. Version 0.2.2 recognizes this observed domestic
+pair as well as the original global pair. It does not guess a search URL.
+The button's exact captured class is deliberately narrow: if the site changes
+it, a new control report is needed instead of clicking an unrelated button.
 
 **The live collection failures are not proven fixed.** The HK run establishes
-homepage access for that session, not working product search. Version 0.2.1's
-control-selection and diagnostic changes have only been tested offline.
+homepage access for that session, not working product search. Version 0.2.2's
+entry/submission fix has only been tested offline. The domestic results DOM
+has not been supplied; the result-card and pagination adapters still cover only
+the saved global layout. A later result-layout failure remains possible.
 Unknown layouts fail explicitly rather than pretending to be successful
 zero-result searches. Use only authorized data and respect applicable site terms.
 
