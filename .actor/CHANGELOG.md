@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 — disabled API preparation, 2026-10-19
+
+- Prepare an owner-selected documented Elim keyword/Offer-ID backend, preserving
+  inputs, per-keyword limits, deduplication, CSVs and partial-result checkpoints.
+- Disabled by default; activation requires owner permission attestation and a
+  secret environment key. Unpaid/unknown-plan users are blocked unless the owner
+  explicitly funds previews. No accounts, trials or paid requests were started.
+- Whole-run attempted-request cap, PPE dataset-event preflight/result allowance,
+  pacing, endpoint allowlist, no redirects/retries/proxy or browser fallback.
+- Preserve API-versus-website price warning; do not invent currency, variants,
+  tiers or independent supplier verification from unvalidated provider responses.
+- 123 offline tests pass, including 25 synthetic API tests. Live provider access,
+  permission, response semantics, billing and production readiness are unverified.
+- Owner's 0.2.2 log confirms successful search submission followed by real CAPTCHA;
+  this update does not disable or bypass that verification.
+
 ## 0.2.2 — development preview, 2026-10-19
 
 - Add domestic homepage keyword entry using the textarea ID/name and exact

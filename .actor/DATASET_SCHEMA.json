@@ -9,6 +9,9 @@
       "image_url": {"type": ["string", "null"]}, "display_price": {"type": ["string", "null"]},
       "currency": {"type": ["string", "null"]}, "moq": {"type": ["integer", "null"]},
       "price_symbol": {"type": ["string", "null"], "description": "Observed price symbol. A standalone yuan/yen or dollar symbol does not by itself identify an ISO currency."},
+      "price_context": {"type": "string", "description": "Provider API prices may differ from website prices; no firm quotation is implied."},
+      "provider_seller_type": {"type": ["string", "null"], "description": "Provider-returned seller classification, not independently verified factory status."},
+      "extraction_source": {"type": "string"},
       "variants": {"type": "array", "description": "Visible variant rows, not quantity-price tiers. Stock values are snapshots, not inventory guarantees.", "items": {"type": "object"}},
       "product_attributes": {"type": "array", "description": "Source-listed product attributes and claims, not independently verified certifications.", "items": {"type": "object"}},
       "image_urls": {"type": "array", "items": {"type": "string"}},
@@ -23,12 +26,13 @@
   "views": {
     "overview": {
       "title": "Products and suppliers",
-      "transformation": {"fields": ["image_url", "title", "product_url", "display_price", "price_symbol", "currency", "moq", "supplier_name", "supplier_url", "supplier_rating", "quote_status"]},
+      "transformation": {"fields": ["image_url", "title", "product_url", "display_price", "price_symbol", "currency", "moq", "supplier_name", "supplier_url", "supplier_rating", "quote_status", "extraction_source", "price_context"]},
       "display": {"component": "table", "properties": {
         "image_url": {"label": "Image", "format": "image"}, "title": {"label": "Product", "format": "text"},
         "product_url": {"label": "Product URL", "format": "link"}, "display_price": {"label": "Displayed price", "format": "text"},
         "currency": {"label": "Currency", "format": "text"}, "moq": {"label": "MOQ", "format": "number"},
         "price_symbol": {"label": "Symbol", "format": "text"},
+        "extraction_source": {"label": "Data source", "format": "text"}, "price_context": {"label": "Price warning", "format": "text"},
         "supplier_name": {"label": "Supplier", "format": "text"}, "supplier_url": {"label": "Store", "format": "link"},
         "supplier_rating": {"label": "Visible rating", "format": "number"}, "quote_status": {"label": "Price status", "format": "text"}
       }}

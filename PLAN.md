@@ -27,8 +27,8 @@ country/session per run. Do not retry access denials with a different identity.
 
 ## Verified offline
 
-98 regression tests pass, including 35 local browser tests and seven mocked
-proxy tests. Saved source HTML supports 60 product cards and the provided
+123 regression tests pass, including 35 local browser tests, seven mocked
+proxy tests and 25 synthetic provider API tests. Saved source HTML supports 60 product cards and the provided
 detail page. No test contacts 1688 or creates paid proxy traffic.
 Actor definitions and local startup are checked; current Docker CI completion
 must be confirmed separately from offline tests.
@@ -58,6 +58,9 @@ must be confirmed separately from offline tests.
 
 ## Remaining work / release gate
 
+- Obtain an Elim account/key and written commercial permission before optional
+  API activation; validate real responses and pricing before public monetization.
+- API scaffold is owner-selected only, default disabled, with no browser fallback.
 - Successful permitted live collection for both current input paths on Apify.
 - Verification of selected-country proxy access and actual traffic/compute costs.
 - Multi-keyword and second-page acceptance against current source results.

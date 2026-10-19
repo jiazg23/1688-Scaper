@@ -11,7 +11,8 @@ FIELDS = ["product_id", "title", "product_url", "image_url", "display_price", "c
           "supplier_rating", "sales_text", "marketing_tags", "is_sponsored", "verified_supplier",
           "manufacturer", "matched_inputs", "extraction_source", "collected_at",
           "variants", "product_attributes", "image_urls", "product_rating", "moq_scope",
-          "supplier_tenure_text", "detail_completeness", "login_required_for_full_details"]
+          "supplier_tenure_text", "detail_completeness", "login_required_for_full_details",
+          "price_context", "provider_seller_type"]
 SUPPLIER_FIELDS = ["supplier_id", "supplier_name", "supplier_url", "product_count", "product_ids", "currencies", "matched_inputs"]
 
 

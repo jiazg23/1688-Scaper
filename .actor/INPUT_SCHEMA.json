@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "1688 Product & Supplier Finder — development preview",
-  "description": "Quickstart: enter product keywords or numeric Offer IDs, then start. IDs take priority when provided. Image search and search-results links are not supported. The Actor uses its own browser and chargeable Apify residential proxies by default. Live collection is not yet release-validated.",
+  "description": "Development preview: enter product keywords or numeric Offer IDs. IDs take priority. Image search and search-results links are not supported. The owner selects the data backend; customers do not provide provider keys. The default browser backend uses chargeable Apify residential proxies. The optional Elim API backend is disabled pending owner activation and commercial permission. Live collection is not release-validated.",
   "type": "object",
   "properties": {
     "keywords": {
@@ -32,7 +32,7 @@
       },
       "maxItems": 100,
       "default": [],
-      "description": "Already know the products? Enter their numeric 1688 product IDs, one per line. For detail.1688.com/offer/1071313125369.html, enter 1071313125369. IDs take priority: keyword search is skipped. Do not paste full URLs. The Actor reads supported public detail fields; login-only details are not collected."
+      "description": "Already know the products? Enter their numeric 1688 product IDs, one per line. For detail.1688.com/offer/1071313125369.html, enter 1071313125369. IDs take priority: keyword search is skipped. Do not paste full URLs. Returned detail fields depend on the owner-selected backend; completeness is not guaranteed."
     },
     "maxResults": {
       "title": "Maximum products per keyword",
@@ -48,7 +48,7 @@
       "minimum": 1,
       "maximum": 100,
       "default": 5,
-      "description": "Click Next page until this limit, the product target or the last available page is reached. Offer IDs open individual products and do not use this setting."
+      "description": "Read result pages until this limit, the product target or the last available page is reached. Offer IDs do not use this setting. The optional API backend also has a separate owner-controlled whole-run request cap."
     },
     "orderQuantity": {
       "title": "How many items do you plan to order?",
@@ -63,7 +63,7 @@
       "title": "Use Apify residential proxies",
       "type": "boolean",
       "default": true,
-      "description": "Use the RESIDENTIAL proxy group and the country below. Traffic costs are billed through Apify. Requires proxy access and available country coverage. Does not guarantee 1688 access or dismiss verification."
+      "description": "Browser backend only: use the RESIDENTIAL proxy group and country below. Traffic costs are billed through Apify. Requires available proxy coverage; does not guarantee access or dismiss verification. Ignored by the optional Elim API backend."
     },
     "proxyCountryMode": {
       "title": "Residential proxy country",
@@ -78,13 +78,13 @@
         "Hong Kong (HK)"
       ],
       "default": "CN",
-      "description": "Select one country for the run. Availability depends on your Apify account and the proxy pool. The Actor keeps one configured session and does not automatically switch countries or identities after login, verification or access denial. Ignored when proxies are disabled."
+      "description": "Browser backend only: select one country for the run. Availability depends on the account and proxy pool. No automatic country or identity changes after denial. Ignored when proxies are disabled or the owner selects the Elim API backend."
     },
     "failOnNoResults": {
       "title": "Stop on the first collection error",
       "type": "boolean",
       "default": false,
-      "description": "When off, continue after ordinary layout/not-found errors and retain valid earlier products. Runs with no products always fail. Login, verification and access-denied responses always stop the run."
+      "description": "When off, continue after ordinary browser layout/not-found errors and retain earlier products. Runs with no products always fail. Login, verification, access denial and provider API failures always stop the run."
     },
     "saveCsvFile": {
       "title": "Save CSV download files",

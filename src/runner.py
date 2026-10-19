@@ -27,6 +27,8 @@ class Runner:
                         "Displayed prices are not confirmed variant-specific bulk quotations."]}
 
     async def save(self):
+        if hasattr(self.collector, "metrics"):
+            self.summary.update(self.collector.metrics)
         self.summary["product_count"] = len(self.products)
         self.summary["last_saved_at"] = datetime.now(timezone.utc).isoformat()
         await self.checkpoint(list(self.products.values()), self.summary)
@@ -52,7 +54,7 @@ class Runner:
                         outcome["error_code" if attribute == "code" else attribute] = getattr(exc, attribute)
                 # Access restrictions are terminal across the run. Never rotate
                 # identity or move to later inputs after the site denies access.
-                stop = isinstance(exc, AccessBlocked) or self.config.strict
+                stop = isinstance(exc, AccessBlocked) or getattr(exc, "terminal", False) or self.config.strict
                 if stop:
                     failure = RunFailed(outcome["error"])
                     break

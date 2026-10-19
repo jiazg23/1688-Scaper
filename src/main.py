@@ -1,7 +1,9 @@
 """Apify entrypoint. Import/startup checks never contact the target website."""
 
 import asyncio
+import os
 import sys
+from contextlib import asynccontextmanager
 
 from apify import Actor
 from playwright.async_api import async_playwright
@@ -12,6 +14,34 @@ from .config import Config
 from .exports import csv_text, supplier_rows, SUPPLIER_FIELDS
 from .runner import Runner
 from .proxy import browser_proxy
+from .elim import data_source, ElimSettings, ElimCollector, ProviderError
+
+
+@asynccontextmanager
+async def collection_backend(config, on_failure, log, environ=None):
+    environ = os.environ if environ is None else environ
+    if data_source(environ) == "elim":
+        settings = ElimSettings.from_env(environ)
+        charging = Actor.get_charging_manager()
+        pricing = charging.get_pricing_info()
+        allowance = None
+        if pricing.is_pay_per_event:
+            event = "apify-default-dataset-item"
+            if pricing.per_event_prices.get(event, 0) <= 0:
+                raise ProviderError("Configure a positive per-product dataset event price before using Elim with PPE. No provider call was made.", "provider_billing_setup")
+            allowance = charging.calculate_max_event_charge_count_within_limit(event)
+        log("Elim API backend selected explicitly. No browser, 1688 proxy or fallback will be used. Commercial approval and live validation remain the owner's responsibility.")
+        yield ElimCollector(settings, config.max_products, log=log, result_allowance=allowance)
+        return
+    proxy = await browser_proxy(config, log)
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True, proxy=proxy)
+        context = await browser.new_context()
+        try:
+            yield BrowserCollector(context, on_failure=on_failure, log=log)
+        finally:
+            await context.close()
+            await browser.close()
 
 
 async def main():
@@ -19,7 +49,6 @@ async def main():
         config = Config.parse(await Actor.get_input())
         Actor.log.warning(f"Development build {__version__}: keyword and Offer ID parsers are fixture-tested, but live 1688 collection is NOT release-validated.")
         Actor.log.info(f"Selected input: {config.mode}. Offer IDs take priority over keywords.")
-        proxy = await browser_proxy(config, Actor.log.info)
         async def checkpoint(products, summary):
             await Actor.set_value("PARTIAL_RESULTS.json", products)
             await Actor.set_value("RUN_SUMMARY.json", summary)
@@ -28,15 +57,11 @@ async def main():
             Actor.log.warning(f"Collection failed at {report['stage']}: {report['error_code']}. Saved {key} in the key-value store.")
         runner = None
         try:
-            async with async_playwright() as playwright:
-                browser = await playwright.chromium.launch(headless=True, proxy=proxy)
-                context = await browser.new_context()
-                try:
-                    runner = Runner(config, BrowserCollector(context, on_failure=on_failure, log=Actor.log.info), checkpoint)
-                    await runner.run()
-                finally:
-                    await context.close()
-                    await browser.close()
+            async with collection_backend(config, on_failure, Actor.log.info) as collector:
+                runner = Runner(config, collector, checkpoint)
+                if isinstance(collector, ElimCollector):
+                    runner.summary["notes"].append("Elim provider API prices may differ from website prices; currency/tier mapping and live access are not validated. Provider charges are billed separately to the owner.")
+                await runner.run()
         finally:
             if runner is not None:
                 products = list(runner.products.values())

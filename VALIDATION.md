@@ -1,11 +1,16 @@
 # Validation status — October 19, 2026
 
-**Version 0.2.2 — development preview, not production-validated.**
+**Version 0.3.0 — development preview, not production-validated.**
 
 ## Confirmed offline
 
-- **98 tests pass:** 44 core/parser/input/runner tests, 35 local Chromium tests,
-  12 access-diagnostic tests and seven mocked proxy-configuration tests.
+- **123 tests pass:** 44 core/parser/input/runner tests, 35 local Chromium tests,
+  12 access-diagnostic tests, seven mocked proxy tests and 25 synthetic API tests.
+- Optional documented Elim search/Offer-ID adapter: owner activation/approval
+  gates, secret handling, unpaid-user gate, whole-run attempted-request limit,
+  result spending allowance, sequential pacing, endpoint allowlist, no redirects,
+  sanitized errors, partial exports and no automatic browser/proxy fallback.
+  These tests use synthetic documented-shape responses, NOT real provider data.
 - The form exposes keywords and numeric Offer IDs, not a mode dropdown.
   IDs take priority even when the example keyword is still filled.
 - Image search, image downloading and search-results-link collection are removed
@@ -63,7 +68,9 @@ queued at delivery. These are build/offline checks, not live site acceptance.
 | Residential proxy configuration | Owner's HK run initialized and fetched the homepage; actual exit-IP geolocation and CN access unverified |
 | HK keyword run in 0.2.0 | Reached HTTP-200 homepage, then timed out at entering_keyword; known input absent from captured main HTML |
 | HK keyword run in 0.2.1 | Failure inventory identifies domestic input and button, both visible and usable |
-| Successful live keyword and second-page collection in 0.2.2 | Not tested; domestic result layout not supplied |
+| HK keyword run in 0.2.2 | Entered and submitted keyword, then CAPTCHA Verification at s.1688.com; zero cards |
+| Optional Elim API collection in 0.3.0 | Disabled; no account/key, written approval, trial or live response validated |
+| Provider billing and public Apify result pricing | Not activated or changed; provider invoice remains separate |
 | Successful live Offer ID collection in 0.2.2 | Not tested |
 | Exact optional-popup X wrapper | Not supplied; test wrappers are synthetic |
 | Real quantity-price tiers | No source fixture; not connected |
@@ -82,6 +89,12 @@ textarea ID/name and exact button class now supported in 0.2.2. This resolves
 the observed selector mismatch offline, not the end-to-end live release gate.
 No domestic result HTML was supplied. The exact captured button class may change
 with a website deployment; unknown buttons are not guessed.
+
+The subsequent report (4) identifies a genuine verification URL after successful
+submission. No change suppresses that restriction. The API preparation uses only
+published third-party service documentation and mocks; it makes no live requests.
+Provider response-envelope/pagination semantics, currency, freshness, reliability
+and redistribution rights remain acceptance requirements, not established facts.
 
 ## Development access limitation
 

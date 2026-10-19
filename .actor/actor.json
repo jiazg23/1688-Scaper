@@ -3,7 +3,7 @@
   "name": "1688-product-supplier-finder",
   "title": "1688 Wholesale Product & Supplier Finder",
   "description": "Development preview: search 1688 by keywords or numeric Offer IDs. Collect supported product and supplier fields with CSV exports. Explicit Apify residential proxy country settings; traffic costs apply. Live access is not yet validated.",
-  "version": "0.2",
+  "version": "0.3",
   "dockerfile": "../Dockerfile",
   "input": "./INPUT_SCHEMA.json",
   "output": "./OUTPUT_SCHEMA.json",

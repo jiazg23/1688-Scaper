@@ -4,10 +4,10 @@ Collect source-backed product and supplier information from **keywords** or
 **numeric Offer IDs**, then download a product CSV and supplier shortlist.
 
 > **Development preview — live access is not release-validated.** Earlier owner
-> runs encountered full-page login and verification responses. The latest HK
-> run reached a domestic homepage whose search controls are supported in 0.2.2.
-> The new control adapter is tested offline only. No successful live
-> product collection is established by the offline tests or container startup.
+> runs encountered full-page login and verification responses. The latest 0.2.2
+> HK run submitted a keyword, then reached CAPTCHA Verification with no cards.
+> Version 0.3.0 adds an optional documented Elim API adapter, disabled until owner
+> activation and commercial approval. No live API requests have been made or validated.
 
 ## 🔎 Two ways to start
 
@@ -25,9 +25,13 @@ For a product at `detail.1688.com/offer/1071313125369.html`, enter only
 `1071313125369` in **Offer IDs**. This is an example from the owner's saved
 HTML, not a guarantee of current product availability.
 
-This collector is independent. It does not call Zen Studio, another paid
-Actor, or an external product-data service. Its form follows familiar input
-conventions; its private competitors' collection code has not been reproduced.
+The default browser collector is independent and does not call another paid
+Actor. Version 0.3.0 also contains an optional Elim product-data API adapter.
+It uses the same keyword/ID inputs and exports, but requires owner credentials,
+commercial permission and explicit activation. It never activates as a fallback
+after a browser access denial. Competitors' private code has not been reproduced.
+
+See [owner activation and billing](DEPLOYMENT.md#optional-elim-api-backend--not-activated).
 
 ## What you get
 
@@ -46,6 +50,12 @@ Unavailable values are `null`. Unlabelled badge images do not establish factory
 or verified-supplier status. Product attributes are seller claims, not independently
 verified certifications. Keyword search does **not** automatically enrich every
 result from its detail page.
+
+The optional API adapter currently maps a conservative subset: ID, original
+title, regular API price, MOQ, unit, images and supplier identity. It does not
+map nested variants, quantity tiers, descriptions or translated fields until
+real authorized responses are validated. Its currency remains unknown, and
+`price_context` explicitly warns that API prices may differ from website prices.
 
 ### Prices, currency and MOQ
 
@@ -179,6 +189,12 @@ has not been supplied; the result-card and pagination adapters still cover only
 the saved global layout. A later result-layout failure remains possible.
 Unknown layouts fail explicitly rather than pretending to be successful
 zero-result searches. Use only authorized data and respect applicable site terms.
+
+The owner's subsequent FAILURE_01 (4).json confirms 0.2.2 successfully entered
+and submitted the keyword, then reached a CAPTCHA Verification URL on s.1688.com
+before any cards appeared. This is an actual access challenge, not a missing
+search control. The optional API integration is a separate, explicitly selected
+documented service, not a verification bypass or a claim of resolved live access.
 
 ## API and MCP
 
