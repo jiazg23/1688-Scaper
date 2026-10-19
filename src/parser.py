@@ -5,7 +5,7 @@ No execution of embedded scripts. No guessed private API response adapters.
 
 import json
 import re
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -146,10 +146,12 @@ def parse_search(html, url=""):
 
 
 def parse_product(html, url):
-    """Standards-only fallback; a real detail-page adapter still needs a sample."""
+    """Captured 1688 detail DOM, then an identity-matched JSON-LD fallback."""
     check_access(html, url)
     expected_url = product_url(url)
     soup = BeautifulSoup(html, "html.parser")
+    if soup.select_one("#productTitle h1"):
+        return parse_detail_dom(soup, expected_url)
     def walk(value):
         if isinstance(value, list):
             for item in value:
@@ -196,4 +198,85 @@ def parse_product(html, url):
                     "supplier_years": None, "supplier_rating": None, "sales_text": None,
                     "marketing_tags": [], "is_sponsored": None, "verified_supplier": None,
                     "manufacturer": None, "extraction_source": "json_ld_product"}
-    raise UnsupportedLayout("No identity-matched Product JSON-LD found. A 1688 product-detail HTML sample is still required.")
+    raise UnsupportedLayout("No supported 1688 detail DOM or identity-matched Product JSON-LD found.")
+
+
+def parse_detail_dom(soup, expected_url):
+    """Source: owner's saved public, not-logged-in product page (2026-10-19)."""
+    offer_id = expected_url.split("/")[-1].split(".")[0]
+    anchor = soup.select_one("#shopNavigation a.shop-company-name[href]")
+    identity_ids = set()
+    for link in soup.select("#shopNavigation a[href]"):
+        if supplier_url(link.get("href", "")):
+            identity_ids.update(parse_qs(urlsplit(link["href"]).query).get("offerId", []))
+    if identity_ids != {offer_id}:
+        raise UnsupportedLayout("Detail page identity does not match the requested offer ID.")
+    price = soup.select_one("#mainPrice .price-info")
+    amount = decimal_text(re.sub(r"\s+", "", "".join(text(n) for n in price.select(".currency"))) if price else "")
+    title = text(soup.select_one("#productTitle h1"))
+    if not title or amount is None:
+        raise UnsupportedLayout("1688 detail title or main price is missing; page is not fully loaded or uses a different layout.")
+    symbol = text(price.select_one(".currency-unit")) or None
+    setting = page_currency(soup)
+    explicit = {"US$": "USD", "USD": "USD", "CNY": "CNY", "RMB": "CNY", "EUR": "EUR", "€": "EUR", "£": "GBP"}.get(symbol)
+    currency = explicit or setting
+    if explicit and setting and explicit != setting:
+        currency = None
+    if symbol in {"¥", "￥"} and setting not in {"CNY", "JPY"}:
+        currency = None  # Preserve ¥; don't confuse a yuan/yen symbol with an ISO code.
+    if symbol == "$" and setting not in {"USD", "CAD", "AUD", "HKD"}:
+        currency = None
+    moq, moq_text, moq_scope, unit = None, None, None, None
+    for node in soup.select("#productPromotion .coupon-list li"):
+        value = text(node)
+        match = re.fullmatch(r"(\d+)[-\s]*pieces?\s+mixed batch", value, re.I) or re.fullmatch(r"(\d+)\s*件混批", value)
+        if match:
+            moq, moq_text, moq_scope, unit = int(match[1]), value, "mixed_batch", "piece"
+            break
+    variants = []
+    for node in soup.select("#skuSelection .expand-view-item"):
+        label = text(node.select_one(".item-label"))
+        prices = node.select(".item-price-stock")
+        raw_price = text(prices[0]) if prices else ""
+        matched = re.fullmatch(r"(US\$|USD|CNY|RMB|[¥￥$€£])\s*([0-9]+(?:\.[0-9]+)?)", raw_price)
+        stock_node = node.select_one('od-text[i18n="sku-stock"]')
+        stock, stock_unit = None, None
+        if stock_node:
+            try:
+                values = json.loads(stock_node.get("data", "null"))
+                if isinstance(values, list) and len(values) == 2 and re.fullmatch(r"[0-9]+", str(values[0])):
+                    stock, stock_unit = int(values[0]), str(values[1])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        img = node.select_one("img[src]")
+        if label:
+            variants.append({"label": label, "display_price": matched[2] if matched else None,
+                             "price_symbol": matched[1] if matched else None,
+                             "currency": currency if matched and matched[1] == symbol else None,
+                             "stock": stock, "stock_unit": stock_unit,
+                             "image_url": img.get("src") if img else None})
+    attributes = []
+    for label in soup.select("#productAttributes .ant-descriptions-item-label"):
+        content = label.find_next_sibling("td", class_="ant-descriptions-item-content")
+        if text(label) and content:
+            attributes.append({"name": text(label), "value": text(content)})
+    gallery = list(dict.fromkeys(n.get("src") for n in soup.select("#gallery img.preview-img[src]") if n.get("src")))
+    rating_node = soup.select_one("#productEvaluation .header-label-desc em.hl")
+    rating = decimal_text(text(rating_node)) if rating_node and not hidden(rating_node) else None
+    partial = bool(soup.select_one(".unlogin-lead, .od-sku-selection-not-login"))
+    return {"product_id": offer_id, "product_url": expected_url, "title": title,
+            "image_url": gallery[0] if gallery else None, "image_urls": gallery,
+            "display_price": amount, "currency": currency, "price_symbol": symbol,
+            "currency_source": "price_unit" if explicit and currency else "page_setting" if currency else None,
+            "moq": moq, "moq_text": moq_text, "moq_scope": moq_scope, "quantity_unit": unit,
+            "price_basis": "starting_price_with_variants" if variants else "detail_starting_price", "price_tiers": [],
+            "variants": variants, "product_attributes": attributes,
+            "product_rating": float(rating) if rating is not None and 0 <= float(rating) <= 5 else None,
+            "supplier_id": None, "supplier_name": text(anchor.select_one("h1")) if anchor else None,
+            "supplier_url": supplier_url(anchor.get("href", "")) if anchor else None,
+            "supplier_years": None, "supplier_tenure_text": text(soup.select_one("#shopNavigation .shop-tp-year")) or None,
+            "supplier_rating": None, "sales_text": None, "marketing_tags": [],
+            "is_sponsored": None, "verified_supplier": None, "manufacturer": None,
+            "detail_completeness": "public_partial" if partial else "visible_fields_only",
+            "login_required_for_full_details": partial,
+            "extraction_source": "1688_public_detail_dom"}

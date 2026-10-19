@@ -162,6 +162,61 @@ class PricingTests(unittest.TestCase):
             self.assertIsNone(decimal_text(value))
 
 
+class CapturedDetailTests(unittest.TestCase):
+    def setUp(self):
+        self.html = (FIXTURES / "product-detail.html").read_text()
+        self.url = product_url("1071313125369")
+        self.product = parse_product(self.html, self.url)
+
+    def test_captured_detail_price_and_moq(self):
+        self.assertEqual(self.product["product_id"], "1071313125369")
+        self.assertEqual(self.product["display_price"], "25.00")
+        self.assertEqual(self.product["price_symbol"], "¥")
+        self.assertEqual(self.product["moq"], 2)
+        self.assertEqual(self.product["moq_scope"], "mixed_batch")
+        self.assertEqual(self.product["quantity_unit"], "piece")
+
+    def test_detail_does_not_inherit_search_currency(self):
+        self.assertIsNone(self.product["currency"])
+        contradictory = (FIXTURES / "currency-usd.html").read_text() + self.html
+        self.assertIsNone(parse_product(contradictory, self.url)["currency"])
+        selected_cny = '<span class="oversea-language-text">Other-English-CNY</span>'
+        self.assertEqual(parse_product(selected_cny + self.html, self.url)["currency"], "CNY")
+
+    def test_variants_are_not_quantity_tiers(self):
+        self.assertEqual(len(self.product["variants"]), 2)
+        self.assertEqual([v["stock"] for v in self.product["variants"]], [3, 583])
+        self.assertEqual([v["display_price"] for v in self.product["variants"]], ["25", "25"])
+        self.assertEqual(self.product["price_tiers"], [])
+        result = quote(self.product, 100)
+        self.assertEqual(result["quote_status"], "variant_selection_required")
+        self.assertIsNone(result["product_subtotal"])
+
+    def test_detail_identity_must_match(self):
+        with self.assertRaises(UnsupportedLayout):
+            parse_product(self.html, product_url("999999999999"))
+
+    def test_login_gated_details_are_explicit(self):
+        self.assertTrue(self.product["login_required_for_full_details"])
+        self.assertEqual(self.product["detail_completeness"], "public_partial")
+        self.assertEqual(self.product["extraction_source"], "1688_public_detail_dom")
+
+    def test_attributes_and_product_rating_not_supplier_rating(self):
+        self.assertEqual(len(self.product["product_attributes"]), 38)
+        self.assertEqual(len(self.product["image_urls"]), 7)
+        self.assertIn({"name": "Model", "value": "P10 Pro"}, self.product["product_attributes"])
+        self.assertEqual(self.product["product_rating"], 5.0)
+        self.assertIsNone(self.product["supplier_rating"])
+        self.assertIsNone(self.product["supplier_years"])
+        self.assertIn("11", self.product["supplier_tenure_text"])
+
+    def test_detail_csv_preserves_nested_fields(self):
+        row = next(csv.DictReader(io.StringIO(csv_text([self.product]).lstrip("\ufeff"))))
+        self.assertEqual(len(json.loads(row["variants"])), 2)
+        self.assertEqual(len(json.loads(row["product_attributes"])), 38)
+        self.assertEqual(row["currency"], "")
+
+
 class ExportAndSchemaTests(unittest.TestCase):
     def test_csv_formula_safety(self):
         data = csv_text([{"product_id": "123456", "title": "  =HYPERLINK(1)", "marketing_tags": ["tag"]}])

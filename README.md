@@ -4,7 +4,8 @@ Build a sourcing shortlist from 1688 product listings: product links, displayed
 prices, MOQ, supplier storefronts and the searches that matched each product.
 
 > **Development preview — not ready for public release.** The parser is tested
-> against 60 real saved product cards supplied by the owner. Live search,
+> against 60 real saved product cards and a real public product-detail page
+> supplied by the owner. Live search,
 > uploads, regional page behavior and direct product-detail extraction have
 > not passed acceptance tests. See [validation status](VALIDATION.md).
 
@@ -15,9 +16,10 @@ prices, MOQ, supplier storefronts and the searches that matched each product.
 - **Image product search:** upload a product image or supply a direct HTTPS
   PNG/JPEG/WebP URL. Each image is searched separately. The upload controls are
   implemented from supplied HTML; live image results still need verification.
-- **Direct product URLs:** provide 1688 offer URLs or IDs. Experimental: currently
-  requires identity-matched Product JSON-LD. A real detail-page sample is still
-  needed for 1688-specific variant and quantity-tier extraction.
+- **Direct product URLs:** provide 1688 offer URLs or IDs. Extract the visible
+  detail price, variants and stock, gallery images, product attributes, product
+  rating and supplier link from the captured public detail-page layout. Mark
+  login-gated details as partial. Product JSON-LD is an additional fallback.
 
 This is an independent collector. It does **not** call a competitor's paid
 Actor or wrap the Alibaba/Made-in-China Actors.
@@ -41,6 +43,11 @@ The owner's supplied page is explicitly **USD**, confirmed by its
 `Other-English-USD` header and `USD ($)` selector. The parser reads those
 selected settings. A `$` symbol alone is not enough to assume USD.
 
+The supplied detail page is a different pricing context: it displays `¥25.00`,
+two color variants at `¥25`, and a two-piece mixed-batch minimum. Its fragment
+does not include an explicit ISO currency setting, so `price_symbol` is `¥` and
+`currency` remains `null`. The USD search-card price is not copied over it.
+
 Each fresh run reports the currency actually observed on its pages. The Actor
 does not import your Chrome settings, force USD, translate titles, or convert
 currencies. Never combine USD and CNY prices as if they were the same currency.
@@ -49,7 +56,9 @@ currencies. Never combine USD and CNY prices as if they were the same currency.
 depend on variants, promotions or quantity; it is **not** a confirmed bulk quote.
 Search cards therefore return `quote_status: "listing_price_only"` and no
 calculated subtotal. The decimal tier calculator is unit-tested, but real
-quantity-tier extraction is not connected until a detail-page sample is verified.
+quantity-tier extraction is not connected: the supplied detail rows describe
+colors and stock, not volume discounts. Detail records with those rows return
+`variant_selection_required`. Stock is a displayed snapshot, not a guarantee.
 Any future tier subtotal excludes freight, taxes, duties and service fees.
 
 ## Quick start on Apify
@@ -82,6 +91,8 @@ The website receives the images you explicitly supply for that search.
 For direct products, choose `"searchMode": "urls"` and populate `productUrls`
 with `https://detail.1688.com/offer/1071313125369.html` or an offer ID. This URL
 is an example from the owner's saved listing, not a guarantee of current availability.
+Direct URL mode reads the public detail page; keyword/image mode exports search
+cards and does not automatically visit every result for detail enrichment.
 
 ### Clear limits, no duplicate timeout controls
 
@@ -148,6 +159,7 @@ Parse a saved results page without connecting to 1688 or executing saved scripts
 ```sh
 .venv/bin/python -m src.offline saved-results.html --header selected-currency.html --format json
 .venv/bin/python -m src.offline saved-results.html --header selected-currency.html --format csv
+.venv/bin/python -m src.offline saved-detail.html --product-url 1071313125369 --format json
 ```
 
 The offline command writes to standard output. The optional header file must

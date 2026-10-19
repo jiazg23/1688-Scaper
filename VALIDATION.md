@@ -4,12 +4,18 @@
 
 ## Confirmed locally
 
-- Complete local suite: **38 tests passed**, including five offline browser tests.
+- Complete local suite: **45 tests passed**, including five offline browser tests and
+  seven regression cases for the supplied real product-detail page.
 - Parsed all 60 unique product cards from the owner's supplied saved results.
 - First captured product: ID `1071313125369`, displayed price `3.84`, MOQ `2`,
   supplier `Jieyang Jiayi Technology Co., Ltd.` and its captured storefront link.
 - Currency is USD when the owner's selected header/dropdown is included.
   A standalone `$` card remains currency-unknown rather than assumed USD/CNY.
+- Real detail fixture for the same offer parses `¥25.00`, two color variants
+  with displayed stock 3/583, mixed-batch MOQ 2, 38 attributes, seven gallery
+  images and aggregate product rating 5.0. Product rating is not supplier rating.
+  Its ISO currency is unknown without explicit page settings; it does not
+  inherit the search card's USD price. Login-gated completeness is explicit.
 - Hidden rating containers are ignored; no verification/factory badge is inferred
   from unlabelled image assets or company names.
 - Offline tests cover validation, tier arithmetic, MOQ boundaries, ambiguity,
@@ -36,7 +42,8 @@ These are saved-HTML/local tests, not live search results.
 | Live second page and final-page detection | Control logic tested offline only |
 | Live image upload and image pagination | Selectors supplied; end-to-end unverified |
 | Live multi-image results with independent limits | Runner tested with synthetic batches only |
-| Direct product details, variants and real quantity tiers | Product-detail sample still needed |
+| Public detail DOM and visible variants/stock | Captured-page regression tests pass; live access pending |
+| Real quantity-price tiers | No source fixture; variant rows are not volume tiers |
 | Currency/language in a fresh Apify browser session | Unverified; no forced USD/translation |
 | Performance, proxy cost, commercial viability | Not measured |
 | Apify Actor created/published/monetized | Not performed |
@@ -51,7 +58,8 @@ used after that denial.
 
 ## Release acceptance
 
-1. Supply real detail-page/price-tier fixtures and implement their exact adapter.
+1. If volume quotes are required, supply real quantity-tier fixtures and verify
+   their units and variant applicability before connecting the price calculator.
 2. Verify regional layout, new-tab behavior and image-pagination selectors.
 3. Keep the CI Docker build and offline suite passing.
 4. Obtain permitted live validation for URL, keyword, multi-page and multi-image

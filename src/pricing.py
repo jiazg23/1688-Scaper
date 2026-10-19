@@ -21,6 +21,9 @@ def quote(product: dict, quantity: int) -> dict:
     if moq is not None and quantity < moq:
         result["quote_status"] = "below_moq"
         return result
+    if product.get("price_basis") in {"variants", "starting_price_with_variants"}:
+        result["quote_status"] = "variant_selection_required"
+        return result
     tiers = product.get("price_tiers") or []
     if not tiers:
         return result

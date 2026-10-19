@@ -9,4 +9,7 @@
   supplier shortlist exports and page-level recovery snapshots.
 - Conservative pricing: no bulk quotation inferred from teaser prices.
 - Offline regression suite and Linux/Docker CI checks.
+- Real public detail DOM adapter for visible price, mixed-batch MOQ, color
+  variants/stock, 38 captured attributes, gallery and aggregate product rating.
+- Detail and search price currencies remain separate; login-gated data is flagged.
 - Live access and direct product-detail acceptance remain incomplete.

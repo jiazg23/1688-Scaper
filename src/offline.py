@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from .exports import csv_text, supplier_rows, SUPPLIER_FIELDS
-from .parser import parse_search
+from .parser import parse_search, parse_product
 from .pricing import quote
 
 
@@ -15,6 +15,7 @@ def main():
     parser.add_argument("html", type=Path)
     parser.add_argument("--header", type=Path, help="Optional saved currency header/dropdown HTML.")
     parser.add_argument("--quantity", type=int, default=100)
+    parser.add_argument("--product-url", help="Parse a saved product detail page for this exact 1688 offer URL/ID.")
     parser.add_argument("--format", choices=["json", "csv", "suppliers"], default="json")
     args = parser.parse_args()
     if args.quantity < 1:
@@ -22,7 +23,7 @@ def main():
     html = args.html.read_text(encoding="utf-8")
     if args.header:
         html = args.header.read_text(encoding="utf-8") + html
-    products = parse_search(html)["products"]
+    products = [parse_product(html, args.product_url)] if args.product_url else parse_search(html)["products"]
     products = [{**p, **quote(p, args.quantity), "matched_inputs": [{"kind": "saved_html", "label": args.html.name}]} for p in products]
     if args.format == "json":
         print(json.dumps(products, ensure_ascii=False, indent=2))

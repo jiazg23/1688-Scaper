@@ -71,12 +71,19 @@ class BrowserCollector:
                 await guard_page(page)
                 if response and response.status >= 400:
                     raise CollectionError(f"Product page returned HTTP {response.status}.")
-                for _ in range(30):
+                product = None
+                for _ in range(90):
                     await guard_page(page)
-                    if await page.locator('script[type="application/ld+json"]').count():
+                    try:
+                        product = parse_product(await page.content(), spec["value"])
                         break
+                    except AccessBlocked:
+                        raise
+                    except CollectionError:
+                        pass
                     await asyncio.sleep(0.5)
-                product = parse_product(await page.content(), spec["value"])
+                if product is None:
+                    raise CollectionError("No supported, identity-matched product details loaded within 45 seconds.")
                 yield {"products": [product], "has_next": False, "page_number": 1}
                 return
             # Image download happens first, so a bad image does not make a site request.

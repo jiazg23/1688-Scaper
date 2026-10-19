@@ -10,8 +10,14 @@
   page-1 pagination fragment; irrelevant styling and tracking were removed.
 - Browser test event handlers are **synthetic**. They prove the collector can
   operate these controls and detect changed cards, not that live 1688 permits it.
-- Product-detail JSON-LD and price tiers used by tests are synthetic schema
-  examples. No real detail-page/quantity-tier fixture has been supplied yet.
+- `product-detail.html` is reduced from the owner's product-detail HTML supplied
+  later the same day for offer 1071313125369. Visible title, main price, two
+  color variants, stock metadata, MOQ promotion, attributes and supplier links
+  are retained. Only aggregate product rating is retained, not buyer identities,
+  avatars or review text. Tracking query parameters, SVGs and shadow templates
+  are removed. Offer ID query evidence is preserved for identity matching.
+- Product-detail JSON-LD and quantity tiers in tests are synthetic schema
+  examples. The real supplied detail page shows variant prices, not quantity tiers.
 
 No saved session, cookies, account credentials, CAPTCHA tokens or HAR traffic
 are included. Tests execute locally with all network requests blocked.

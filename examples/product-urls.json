@@ -1,0 +1,7 @@
+{
+  "searchMode": "urls",
+  "productUrls": ["https://detail.1688.com/offer/1071313125369.html"],
+  "orderQuantity": 100,
+  "useApifyProxy": true,
+  "saveCsvFile": true
+}

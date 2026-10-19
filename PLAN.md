@@ -84,6 +84,13 @@ and reports the applicable published price tier for the buyer's order quantity.
   Actions passed Linux tests, Docker build and offline container/browser startup.
 - 2026-10-19: Checked all four Actor definitions against Apify's published
   meta-schemas and removed an unsupported output-schema root keyword.
-- Remaining source requirement: complete product-detail and price-tier HTML,
-  image-results pagination and confirmed search-tab behavior. Live access,
+- 2026-10-19: Owner supplied a real public product-detail page. Added a strict,
+  identity-matched DOM adapter for visible price, MOQ, variants/stock, attributes,
+  gallery, supplier link and aggregate product rating. Full details are login-gated.
+- 2026-10-19: Detail page price symbol is ¥, not the USD card price. Preserve
+  context; do not infer quantity tiers from color variants or unknown currency.
+- 2026-10-19: Expanded suite passed all 45 tests. All four Actor definition files
+  pass Apify's published meta-schemas after adding detail fields.
+- Remaining source requirement: actual quantity-tier examples if bulk quotes are
+  desired, image-results pagination and confirmed search-tab behavior. Live access,
   fresh-session currency/language, deployment and pricing remain unvalidated.

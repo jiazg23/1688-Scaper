@@ -18,8 +18,9 @@ saved browser session or personal credentials belong in this repository.
 
 ## Evidence still needed
 
-- A complete product-detail HTML export showing variants, price tiers, MOQ and
-  quantity units. Existing direct-URL JSON-LD tests are synthetic.
+- A product-detail example with real quantity-price tiers, if available. The
+  supplied public detail page is now parsed, but contains variant prices rather
+  than volume tiers. Full details remain login-gated.
 - Confirmation of whether keyword and image search open a new tab.
 - A second-page card capture and the final-page disabled Next state.
 - An image-results page with its actual pagination markup.
