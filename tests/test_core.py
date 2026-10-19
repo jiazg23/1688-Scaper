@@ -88,6 +88,8 @@ class ParserTests(unittest.TestCase):
     def test_dropdown_selected_currency(self):
         html = '<div class="currency-section"><div class="select-value"><span class="select-text">USD ($)</span></div></div>'
         self.assertEqual(parse_search(html + (FIXTURES / "search-results.html").read_text())["products"][0]["currency"], "USD")
+        conflict = '<span class="oversea-language-text">Other-English-CNY</span>'
+        self.assertIsNone(parse_search(conflict + html + (FIXTURES / "search-results.html").read_text())["products"][0]["currency"])
 
     def test_hidden_rating_not_exported(self):
         products = parse_search(HTML)["products"]
@@ -180,6 +182,7 @@ class ExportAndSchemaTests(unittest.TestCase):
             Draft7Validator.check_schema(json.loads((ROOT / f".actor/{name}.json").read_text()))
         output = json.loads((ROOT / ".actor/OUTPUT_SCHEMA.json").read_text())
         self.assertEqual(output["actorOutputSchemaVersion"], 1)
+        self.assertNotIn("type", output)  # Apify's output meta-schema rejects this root keyword.
         dataset = json.loads((ROOT / ".actor/DATASET_SCHEMA.json").read_text())
         Draft7Validator.check_schema(dataset["fields"])
         for product in parse_search(HTML)["products"]:

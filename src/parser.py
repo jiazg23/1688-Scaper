@@ -63,11 +63,12 @@ def check_access(html, url=""):
 def page_currency(soup):
     # The user supplied both header and dropdown evidence. Read selected values,
     # not the full dropdown options or an arbitrary '$' symbol.
+    currencies = set()
     for node in soup.select(".oversea-language-text, .currency-section .select-value .select-text"):
         found = re.search(r"(?:^|[^A-Z])(USD|CNY|EUR|GBP|CAD|AUD|JPY|HKD)(?:$|[^A-Z])", text(node).upper())
         if found:
-            return found[1]
-    return None
+            currencies.add(found[1])
+    return next(iter(currencies)) if len(currencies) == 1 else None
 
 
 def supplier_url(value):

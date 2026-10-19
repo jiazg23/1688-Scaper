@@ -18,6 +18,12 @@
   changed-card pagination, disabled Next, unchanged-product rejection and
   terminal verification detection. All outgoing requests are aborted.
 - Startup import/default-input check, Python compilation and dependency check pass.
+- Actor, input, dataset and output definitions pass the published
+  [Apify JSON schemas](https://github.com/apify-projects/actor-json-schemas).
+  The output schema omits the unsupported root `type` keyword.
+- [GitHub's Linux validation](https://github.com/jiazg23/1688-Scaper/actions)
+  passed the offline suite, Docker build, container import/startup check and
+  Chromium startup with container networking disabled.
 
 These are saved-HTML/local tests, not live search results.
 
@@ -25,7 +31,7 @@ These are saved-HTML/local tests, not live search results.
 
 | Acceptance case | Status |
 | --- | --- |
-| Apify/Linux container build and browser startup | CI configured; local Docker daemon unavailable |
+| Linux container build and offline browser startup | Passed in GitHub Actions; not an actual Apify run |
 | Live keyword search returns relevant cards | Blocked by development browser site-safety policy |
 | Live second page and final-page detection | Control logic tested offline only |
 | Live image upload and image pagination | Selectors supplied; end-to-end unverified |
@@ -47,7 +53,7 @@ used after that denial.
 
 1. Supply real detail-page/price-tier fixtures and implement their exact adapter.
 2. Verify regional layout, new-tab behavior and image-pagination selectors.
-3. Pass the CI Docker build and offline suite.
+3. Keep the CI Docker build and offline suite passing.
 4. Obtain permitted live validation for URL, keyword, multi-page and multi-image
    runs on the actual Apify build. Independently check output against source pages.
 5. Confirm challenge/partial-failure reporting, recovery exports and default input.

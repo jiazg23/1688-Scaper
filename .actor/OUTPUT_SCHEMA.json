@@ -1,7 +1,6 @@
 {
   "actorOutputSchemaVersion": 1,
   "title": "1688 sourcing output",
-  "type": "object",
   "properties": {
     "products": {"type": "string", "title": "Product dataset", "template": "{{links.apiDefaultDatasetUrl}}/items"},
     "files": {"type": "string", "title": "CSV files and progress snapshots", "template": "{{links.apiDefaultKeyValueStoreUrl}}/keys"},

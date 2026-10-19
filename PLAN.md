@@ -80,6 +80,10 @@ and reports the applicable published price tier for the buyer's order quantity.
 - 2026-10-19: Owner selected public repository `jiazg23/1688-Scaper`; it is empty.
 - 2026-10-19: Complete local suite passed: 38 tests, including five offline
   browser tests. Apify startup imports and installed dependency checks pass.
+- 2026-10-19: Uploaded the full package to `jiazg23/1688-Scaper/main`. GitHub
+  Actions passed Linux tests, Docker build and offline container/browser startup.
+- 2026-10-19: Checked all four Actor definitions against Apify's published
+  meta-schemas and removed an unsupported output-schema root keyword.
 - Remaining source requirement: complete product-detail and price-tier HTML,
   image-results pagination and confirmed search-tab behavior. Live access,
   fresh-session currency/language, deployment and pricing remain unvalidated.
