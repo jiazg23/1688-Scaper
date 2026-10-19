@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, patch
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
-from src.collector import HOME, BrowserCollector, guard_page, next_page, wait_results
+from src.collector import HOME, BrowserCollector, guard_page, next_page, wait_results, wait_product
 from src.popups import dismiss_optional_login
-from src.parser import (CARD, KEYWORD, SEARCH, IMAGE_OPEN, IMAGE_INPUT, IMAGE_CONFIRM,
+from src.parser import (CARD, KEYWORD, SEARCH,
                         parse_search, CollectionError, AccessBlocked)
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -36,24 +36,11 @@ class OfflineBrowserTests(unittest.IsolatedAsyncioTestCase):
         await self.browser.close()
         await self.playwright.stop()
 
-    async def test_real_saved_search_and_upload_selectors(self):
+    async def test_real_saved_keyword_controls(self):
         await self.page.set_content((FIXTURES / "search-controls.html").read_text())
-        await self.page.locator(KEYWORD).fill("hair dryer")
-        self.assertEqual(await self.page.locator(KEYWORD).input_value(), "hair dryer")
+        await self.page.locator(KEYWORD).fill("wireless earbuds")
+        self.assertEqual(await self.page.locator(KEYWORD).input_value(), "wireless earbuds")
         self.assertEqual(await self.page.locator(SEARCH).count(), 1)
-        self.assertEqual(await self.page.locator(IMAGE_OPEN).count(), 1)
-        await self.page.evaluate("""() => {
-            document.querySelector('.cgf-search-input__image-btn').onclick = () => {
-                document.querySelector('.cgf-image-search-popover').style.display = 'block';
-            };
-            document.querySelector('input[type=file]').onchange = () => {
-                document.querySelector('.cgf-image-search-panel__confirm-btn').disabled = false;
-            };
-        }""")
-        await self.page.locator(IMAGE_OPEN).click()
-        await self.page.locator(IMAGE_INPUT).set_input_files({"name": "fixture.png", "mimeType": "image/png", "buffer": b"\x89PNG\r\n\x1a\n"})
-        self.assertTrue(await self.page.locator(IMAGE_CONFIRM).is_enabled())
-        self.assertEqual(await self.page.locator(IMAGE_INPUT).evaluate("e => e.files.length"), 1)
 
     async def test_pagination_requires_changed_products(self):
         await self.page.set_content(self.card + self.pagination)
@@ -165,18 +152,77 @@ class OfflineBrowserTests(unittest.IsolatedAsyncioTestCase):
             await guard_page(self.page)
         self.assertEqual(raised.exception.code, "login_popup_not_dismissed")
 
-    async def test_search_link_opens_requested_results_without_homepage(self):
-        url = "https://air.1688.com/kapp/1688-global/sales/search?keywords=hair%20dryer&page=3&sort=price"
+    async def test_offer_id_opens_only_its_public_detail_page(self):
+        url = "https://detail.1688.com/offer/1071313125369.html"
         async def load_fixture(target, **kwargs):
-            await self.page.set_content(self.card + self.pagination, wait_until="domcontentloaded")
-            response = type("Response", (), {"status": 200})()
-            return response
+            await self.page.set_content((FIXTURES / "product-detail.html").read_text(), wait_until="domcontentloaded")
+            return type("Response", (), {"status": 200})()
         with patch.object(self.context, "new_page", new=AsyncMock(return_value=self.page)), patch.object(self.page, "goto", new=AsyncMock(side_effect=load_fixture)) as navigation:
             collector = BrowserCollector(self.context)
-            async with aclosing(collector.pages({"index": 1, "kind": "search_urls", "value": url}, 1)) as pages:
+            async with aclosing(collector.pages({"index": 1, "kind": "offer_ids", "value": "1071313125369"}, 5)) as pages:
                 batch = await anext(pages)
-                self.assertEqual(len(batch["products"]), 1)
+                self.assertFalse(batch["has_next"])
+                self.assertEqual(batch["products"][0]["product_id"], "1071313125369")
+                with self.assertRaises(StopAsyncIteration):
+                    await anext(pages)
             navigation.assert_awaited_once_with(url, wait_until="domcontentloaded", timeout=45000)
+
+    async def test_offer_wait_requires_matching_identity(self):
+        await self.page.set_content((FIXTURES / "product-detail.html").read_text(), wait_until="domcontentloaded")
+        with patch("src.collector.asyncio.sleep", new=AsyncMock()):
+            with self.assertRaises(CollectionError):
+                await wait_product(self.page, "https://detail.1688.com/offer/999999999999.html", timeout_seconds=1)
+
+    async def test_verification_on_offer_remains_terminal_and_diagnostic(self):
+        async def load_verification(target, **kwargs):
+            await self.page.set_content("<title>安全验证</title>", wait_until="domcontentloaded")
+            return type("Response", (), {"status": 200})()
+        failure = AsyncMock()
+        with patch.object(self.context, "new_page", new=AsyncMock(return_value=self.page)), patch.object(self.page, "goto", new=AsyncMock(side_effect=load_verification)) as navigation:
+            collector = BrowserCollector(self.context, on_failure=failure)
+            async with aclosing(collector.pages({"index": 1, "kind": "offer_ids", "value": "1071313125369"}, 1)) as pages:
+                with self.assertRaises(AccessBlocked):
+                    await anext(pages)
+            self.assertEqual(navigation.await_count, 1)
+        report = failure.call_args.args[1]
+        self.assertEqual(report["stage"], "opening_offer")
+        self.assertEqual(report["error_code"], "verification_title")
+
+    async def test_removed_modes_do_not_open_any_browser_page(self):
+        for kind in ["image", "search_urls", "urls"]:
+            with self.subTest(kind=kind), patch.object(self.context, "new_page", new=AsyncMock()) as opening:
+                async with aclosing(BrowserCollector(self.context).pages({"kind": kind, "value": "unused", "index": 1}, 1)) as pages:
+                    with self.assertRaises(CollectionError):
+                        await anext(pages)
+                opening.assert_not_awaited()
+
+    async def test_keyword_collector_submits_input_and_reads_next_page(self):
+        async def load_home(target, **kwargs):
+            await self.page.set_content((FIXTURES / "search-controls.html").read_text(), wait_until="domcontentloaded")
+            await self.page.evaluate("""(results) => {
+                document.querySelector('button[data-tracker="textSearch.search"]').onclick = () => {
+                    window.submittedKeyword = document.querySelector('textarea.cgf-search-input__input').value;
+                    document.body.innerHTML = results;
+                    document.querySelector('.cgf-sale-pagination-next').onclick = () => {
+                        document.querySelector('[data-offerid]').dataset.offerid = '999999999999';
+                        document.querySelector('.cgf-sale-pagination-page-active').textContent = '2';
+                        document.querySelector('.cgf-sale-pagination-next').disabled = true;
+                    };
+                };
+            }""", self.card + self.pagination)
+            return type("Response", (), {"status": 200})()
+        with patch.object(self.context, "new_page", new=AsyncMock(return_value=self.page)), patch.object(self.page, "goto", new=AsyncMock(side_effect=load_home)) as navigation:
+            collector = BrowserCollector(self.context)
+            async with aclosing(collector.pages({"kind": "keyword", "value": "wireless earbuds", "index": 1}, 3)) as pages:
+                first = await anext(pages)
+                second = await anext(pages)
+                self.assertNotEqual(first["products"][0]["product_id"], second["products"][0]["product_id"])
+                self.assertEqual(second["page_number"], 2)
+                self.assertFalse(second["has_next"])
+                self.assertEqual(await self.page.evaluate("window.submittedKeyword"), "wireless earbuds")
+                with self.assertRaises(StopAsyncIteration):
+                    await anext(pages)
+            navigation.assert_awaited_once_with(HOME, wait_until="domcontentloaded", timeout=45000)
 
 
 if __name__ == "__main__":

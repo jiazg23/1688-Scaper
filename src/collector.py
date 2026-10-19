@@ -1,18 +1,19 @@
 """Ordinary browser interaction using supplied DOM selectors.
 
-This module has NOT been run against live 1688 during development. There is no
-stealth browser, alternate API, CAPTCHA solver, imported login, or proxy rotation.
+Development tests use saved HTML; successful live collection is not established.
+There is no stealth browser, alternate API, CAPTCHA solver, imported login or
+identity switching after an access denial.
 """
 
 import asyncio
 
 from playwright.async_api import Error as BrowserError, TimeoutError as BrowserTimeout
 
-from .images import download_image
+from .config import product_url
 from .diagnostics import capture_failure
 from .popups import LOGIN_FRAME, dismiss_optional_login, is_login_url
-from .parser import (CARD, NEXT, KEYWORD, SEARCH, IMAGE_OPEN, IMAGE_INPUT, IMAGE_CONFIRM,
-                     AccessBlocked, CollectionError, check_access, check_http_status, parse_search)
+from .parser import (CARD, NEXT, KEYWORD, SEARCH, AccessBlocked, CollectionError,
+                     UnsupportedLayout, check_access, check_http_status, parse_search, parse_product)
 
 HOME = "https://www.1688.com/"
 
@@ -113,6 +114,17 @@ async def next_page(page, before):
     raise CollectionError("Next page did not produce new product cards; stopped to avoid repeating page 1.")
 
 
+async def wait_product(page, expected_url, timeout_seconds=45):
+    """Wait for a source-backed detail record for this exact offer, not a recommendation."""
+    for _ in range(timeout_seconds * 2):
+        signals = await guard_page(page)
+        try:
+            return parse_product(await page.content(), expected_url, visible_signals=signals)
+        except UnsupportedLayout:
+            await asyncio.sleep(0.5)
+    raise CollectionError("No supported, identity-matched product details appeared within the time limit.")
+
+
 class BrowserCollector:
     def __init__(self, context, on_failure=None, log=None):
         self.context = context
@@ -120,6 +132,8 @@ class BrowserCollector:
         self.log = log
 
     async def pages(self, spec, max_pages):
+        if spec["kind"] not in {"keyword", "offer_ids"}:
+            raise CollectionError("Only keyword and Offer ID inputs are supported.")
         page = await self.context.new_page()
         owned_pages = [page]
         popup_pages = []
@@ -135,51 +149,39 @@ class BrowserCollector:
             if self.log:
                 self.log(f"[{spec['kind'].upper()} {spec['index']}] Stage: {stage}")
         try:
-            # Image download happens first, so a bad image does not make a site request.
-            payload = None
-            if spec["kind"] == "image":
-                progress("downloading_image")
-                data, mime = await asyncio.to_thread(download_image, spec["value"])
-                payload = {"name": "product." + {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}[mime],
-                           "mimeType": mime, "buffer": data}
-            if spec["kind"] == "search_urls":
-                progress("opening_search_url")
-                response = await page.goto(spec["value"], wait_until="domcontentloaded", timeout=45000)
+            if spec["kind"] == "offer_ids":
+                expected_url = product_url(spec["value"])
+                progress("opening_offer")
+                response = await page.goto(expected_url, wait_until="domcontentloaded", timeout=45000)
                 http_status = response.status if response else None
                 check_http_status(http_status)
                 await guard_page(page)
                 if response and response.status >= 400:
-                    raise CollectionError(f"Search results page returned HTTP {response.status}.")
-                # Open the user's selected results directly: do not visit HOME,
-                # replace keywords, discard filters, or restart on page one.
-                progress("waiting_for_results")
-                page = await wait_results(page, popup_pages=popup_pages)
-            else:
-                progress("opening_homepage")
-                if self.log:
-                    self.log(f"Opening the public homepage: {HOME}")
-                response = await page.goto(HOME, wait_until="domcontentloaded", timeout=45000)
-                http_status = response.status if response else None
-                check_http_status(http_status)
-                await guard_page(page)
-                if response and response.status >= 400:
-                    raise CollectionError(f"1688 home page returned HTTP {response.status}.")
-                baseline_ids = set(await page.locator(CARD).evaluate_all("nodes => nodes.map(n => n.dataset.offerid)"))
-                if spec["kind"] == "keyword":
-                    progress("entering_keyword")
-                    await page.locator(KEYWORD).first.fill(spec["value"])
-                    progress("submitting_keyword")
-                    await page.locator(SEARCH).first.click()
-                else:
-                    progress("uploading_image")
-                    await page.locator(IMAGE_OPEN).first.click()
-                    await page.locator(IMAGE_INPUT).first.set_input_files(payload)
-                    await page.locator(IMAGE_CONFIRM).first.click()
-                progress("waiting_for_results")
-                source_page = page
-                page = await wait_results(source_page, popup_pages=popup_pages, baseline_ids=baseline_ids)
-                if page != source_page and self.log:
-                    self.log("Search opened a new tab; collecting from that results tab.")
+                    raise CollectionError(f"Product page returned HTTP {response.status}.")
+                progress("waiting_for_offer")
+                product = await wait_product(page, expected_url)
+                progress("reading_offer")
+                yield {"products": [product], "has_next": False, "page_number": 1}
+                return
+            progress("opening_homepage")
+            if self.log:
+                self.log(f"Opening the public homepage: {HOME}")
+            response = await page.goto(HOME, wait_until="domcontentloaded", timeout=45000)
+            http_status = response.status if response else None
+            check_http_status(http_status)
+            await guard_page(page)
+            if response and response.status >= 400:
+                raise CollectionError(f"1688 home page returned HTTP {response.status}.")
+            baseline_ids = set(await page.locator(CARD).evaluate_all("nodes => nodes.map(n => n.dataset.offerid)"))
+            progress("entering_keyword")
+            await page.locator(KEYWORD).first.fill(spec["value"])
+            progress("submitting_keyword")
+            await page.locator(SEARCH).first.click()
+            progress("waiting_for_results")
+            source_page = page
+            page = await wait_results(source_page, popup_pages=popup_pages, baseline_ids=baseline_ids)
+            if page != source_page and self.log:
+                self.log("Search opened a new tab; collecting from that results tab.")
             signatures = set()
             for _ in range(max_pages):
                 progress("reading_results")

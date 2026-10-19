@@ -10,6 +10,8 @@
   page-1 pagination fragment; irrelevant styling and tracking were removed.
 - Browser test event handlers are **synthetic**. They prove the collector can
   operate these controls and detect changed cards, not that live 1688 permits it.
+- Image-upload controls remain in the historical captured source fragment, but
+  image-search code and inputs are removed in 0.2.0; tests use its keyword controls.
 - `login-iframe.html` retains the owner's supplied `alibaba-login-box` iframe ID
   and login endpoint. Session, tracking and redirect query parameters are removed.
   Surrounding close buttons, popup events and new-tab result content in browser
@@ -22,6 +24,9 @@
   are removed. Offer ID query evidence is preserved for identity matching.
 - Product-detail JSON-LD and quantity tiers in tests are synthetic schema
   examples. The real supplied detail page shows variant prices, not quantity tiers.
+  Offer ID workflow tests mock navigation and require this exact identity.
+- Proxy configuration tests mock the Apify SDK. No proxy credentials, country
+  availability or live target access is validated by those tests.
 
 No saved session, cookies, account credentials, CAPTCHA tokens or HAR traffic
 are included. Tests execute locally with all network requests blocked.

@@ -16,9 +16,6 @@ CARD = ".cgf-sale-product-list-card-wrapper[data-offerid]"
 NEXT = ".cgf-sale-pagination-next"
 KEYWORD = "textarea.cgf-search-input__input"
 SEARCH = 'button[data-tracker="textSearch.search"]'
-IMAGE_OPEN = "button.cgf-search-input__image-btn"
-IMAGE_INPUT = "input.beacon-upload-input[type=file]"
-IMAGE_CONFIRM = "button.cgf-image-search-panel__confirm-btn"
 
 
 class CollectionError(RuntimeError):

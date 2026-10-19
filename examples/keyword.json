@@ -1,9 +1,10 @@
 {
-  "searchMode": "keyword",
-  "searchTerms": ["hair dryer"],
-  "maxProductsPerKeyword": 50,
-  "maxPagesText": 5,
+  "keywords": ["wireless earbuds"],
+  "offerIds": [],
+  "maxResults": 100,
+  "maxPagesPerKeyword": 5,
   "orderQuantity": 100,
   "useApifyProxy": true,
+  "proxyCountryMode": "CN",
   "saveCsvFile": true
 }

@@ -1,0 +1,8 @@
+{
+  "keywords": [],
+  "offerIds": ["1071313125369"],
+  "useApifyProxy": true,
+  "proxyCountryMode": "CN",
+  "saveCsvFile": true,
+  "csvFilename": "1688_products.csv"
+}

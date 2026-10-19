@@ -1,98 +1,88 @@
 # Validation status — October 19, 2026
 
-**Development preview, not production-validated.**
+**Version 0.2.0 — development preview, not production-validated.**
 
-## Confirmed locally
+## Confirmed offline
 
-- Complete local suite: **75 tests passed**, including 18 offline browser tests and
-  seven regression cases for the supplied real product-detail page.
-- Parsed all 60 unique product cards from the owner's supplied saved results.
-- First captured product: ID `1071313125369`, displayed price `3.84`, MOQ `2`,
-  supplier `Jieyang Jiayi Technology Co., Ltd.` and its captured storefront link.
-- Currency is USD when the owner's selected header/dropdown is included.
-  A standalone `$` card remains currency-unknown rather than assumed USD/CNY.
-- Real detail fixture for the same offer parses `¥25.00`, two color variants
-  with displayed stock 3/583, mixed-batch MOQ 2, 38 attributes, seven gallery
-  images and aggregate product rating 5.0. Product rating is not supplier rating.
-  Its ISO currency is unknown without explicit page settings; it does not
-  inherit the search card's USD price. Login-gated completeness is explicit.
-- Hidden rating containers are ignored; no verification/factory badge is inferred
-  from unlabelled image assets or company names.
-- Offline tests cover validation, tier arithmetic, MOQ boundaries, ambiguity,
-  exports, private image addresses, deduplication, per-image limits and recovery.
-- Offline Chromium tests pass: supplied search/upload selectors, changed-card
-  pagination, disabled Next, unchanged-product rejection, new results tabs,
-  optional login popup closure and terminal verification detection. Search-link
-  navigation preserves the supplied URL and does not visit the homepage first.
-  All outgoing requests are aborted.
-- The input form and runtime offer only search results links, keyword and image
-  modes. Individual product URL mode is removed. Per-search-link caps, supported
-  result URLs, query preservation and old-mode rejection are regression-tested.
-- Fixed locally reproduced false positives from SDK script references to challenge
-  paths and hidden login controls. Actual challenge URLs/titles/controls, standalone
-  verification configurations and visible login forms remain terminal errors.
-- Failure reports record stage and reason without raw page source, credentials
-  or challenge URL tokens; diagnostic-write errors do not replace the original error.
-- Startup import/default-input check, Python compilation and dependency check pass.
-- Actor, input, dataset and output definitions pass the published
-  [Apify JSON schemas](https://github.com/apify-projects/actor-json-schemas).
-  The output schema omits the unsupported root `type` keyword.
-- [GitHub's Linux validation](https://github.com/jiazg23/1688-Scaper/actions)
-  passed the offline suite, Docker build, container import/startup check and
-  Chromium startup with container networking disabled.
+- **85 tests pass:** 44 core/parser/input/runner tests, 22 local Chromium tests,
+  12 access-diagnostic tests and seven mocked proxy-configuration tests.
+- The form exposes keywords and numeric Offer IDs, not a mode dropdown.
+  IDs take priority even when the example keyword is still filled.
+- Image search, image downloading and search-results-link collection are removed
+  from the input and runtime. Removed inputs fail explicitly instead of running
+  the sample keyword.
+- Per-keyword product/page caps reset independently; repeated products preserve
+  all matching inputs while appearing once in the dataset.
+- Saved keyword controls, same/new results tabs, changed-card pagination,
+  disabled Next, repeated-page rejection and page-level recovery are tested.
+- The Offer ID collector opens only the canonical public page for the requested
+  numeric ID. Detail identity must match; recommendations do not satisfy it.
+- All 60 real saved search cards parse. First product: 1071313125369, displayed
+  price 3.84, MOQ 2, supplier Jieyang Jiayi Technology Co., Ltd.
+- Currency is USD only when the owner's selected USD header/dropdown is present.
+  A standalone dollar symbol does not establish USD or CNY.
+- The real detail fixture parses a displayed ¥25.00, two color variants with
+  stock 3/583, mixed-batch MOQ 2, 38 attributes, seven gallery images and product
+  rating 5.0. This is not supplier rating or a quantity-discount ladder.
+- Detail ISO currency remains unknown without explicit source evidence.
+  Login-gated completeness is flagged rather than fabricated.
+- Proxy mocks confirm the RESIDENTIAL group, explicit CN/HK selection, one
+  session initialization, decoded credentials without logging, and sanitized
+  access/configuration errors without direct/country fallback.
+- Login/verification and HTTP 401/403/429 remain terminal across the batch.
+  Optional login closure requires a real close control and usable public content.
+- Local Chromium tests abort all outgoing network requests; proxy tests mock the
+  SDK. No live 1688 or paid proxy request is made by these tests.
 
-These are saved-HTML/local tests, not live search results.
+## Build checks
 
-## Pending or blocked
+Startup imports/default input and Python compilation pass locally. The four
+Actor definition files are checked against Apify's published schemas before
+upload. GitHub Actions builds the Linux Docker image and checks container imports
+and Chromium startup with container networking disabled.
 
-| Acceptance case | Status |
+These are build/offline checks, not live site-collection acceptance.
+
+## Live evidence and remaining acceptance
+
+| Case | Status |
 | --- | --- |
-| Linux container build and offline browser startup | Passed in GitHub Actions; not an actual Apify run |
-| Live keyword search returns relevant cards | Owner's subsequent report shows a full-page login redirect while opening the homepage |
-| Copied search-results links collect matching cards | Validation/navigation tested offline; owner live test pending |
-| Optional login X and new results tabs | New tabs confirmed by owner; synthetic interactions pass; actual X wrapper not supplied |
-| Live second page and final-page detection | Control logic tested offline only |
-| Live image upload and image pagination | Selectors supplied; end-to-end unverified |
-| Live multi-image results with independent limits | Runner tested with synthetic batches only |
-| Public detail DOM and visible variants/stock | Offline parser tests retained; individual-product Actor mode removed |
-| Real quantity-price tiers | No source fixture; variant rows are not volume tiers |
-| Currency/language in a fresh Apify browser session | Unverified; no forced USD/translation |
-| Performance, proxy cost, commercial viability | Not measured |
-| Apify build/startup | Owner's supplied live log confirms startup under limited permissions |
-| Publishing/monetization | Not performed by this agent; current owner settings unverified |
+| Apify container/SDK/browser startup under limited permissions | Owner logs confirm earlier versions start successfully |
+| Keyword collection on the earlier generic proxy setup | Failed at opening_homepage; login.taobao.com was the final host |
+| Search-link mode in version 0.1.2 | Owner run detected a visible verification frame; mode is now removed |
+| CN/HK residential proxy availability in the owner's account | Not tested |
+| Successful live keyword and second-page collection in 0.2.0 | Not tested |
+| Successful live Offer ID collection in 0.2.0 | Not tested |
+| Exact optional-popup X wrapper | Not supplied; test wrappers are synthetic |
+| Real quantity-price tiers | No source fixture; not connected |
+| Current relevance, speed, proxy traffic cost and success rate | Not measured |
+| Publishing/monetization | Not changed by the agent |
 
-## Initial access observations
+The earlier homepage failure report contains stage opening_homepage, code
+login_url, host login.taobao.com, zero product cards and no keyword input.
+The subsequent search-link log reports verification_frame. Neither establishes
+that every manual visitor needs an account; both show this Actor's earlier
+browser sessions failed before collection.
 
-Before the browser refusal, direct product and search requests returned
-verification redirects, not product records. The homepage alone was reachable.
-The browser's site-safety policy then rejected the challenge destination and
-1688 browser access. No CAPTCHA was solved and no alternate access route was
-used after that denial.
+## Development access limitation
 
-## Owner-reported Apify run and failure report
+Before the browser refusal, live product/search probes returned verification
+redirects; only the homepage was reachable. Browser policy subsequently denied
+1688 access. No CAPTCHA was solved and no alternative domains, proxy routes,
+private APIs or browser surfaces were used to circumvent that denial.
 
-The October 19 log for build `HeWsquxXqMu3HdrwS` confirms successful container,
-SDK and browser startup, followed by an `AccessBlocked` classification. That log
-alone could not identify the page. The subsequent `FAILURE_01.json` records
-`stage: opening_homepage`, `error_code: login_url`, host `login.taobao.com`,
-HTTP 200, no product cards and no keyword input. This is a top-level login
-redirect before search submission, not evidence of an optional popup.
+Version 0.2.0 changes input routing and standard initial proxy configuration.
+The competitor's public input schema is not its underlying source code. No
+claim is made that their private collection method has been reproduced.
 
-The owner separately supplied `iframe#alibaba-login-box` and confirmed manual
-search opens a new results tab. Version 0.1.2 handles these ordinary UI behaviors
-in offline tests. The iframe's surrounding real X control has not been supplied;
-close-button tests use synthetic wrappers. The original full-page redirect is
-not proven resolved. No new live 1688 request was performed by the agent.
+## Release gate
 
-## Release acceptance
-
-1. If volume quotes are required, supply real quantity-tier fixtures and verify
-   their units and variant applicability before connecting the price calculator.
-2. Verify regional layout, new-tab behavior and image-pagination selectors.
-3. Keep the CI Docker build and offline suite passing.
-4. Obtain permitted live validation for search-results links, keyword, multi-page and multi-image
-   runs on the actual Apify build. Independently check output against source pages.
-5. Confirm challenge/partial-failure reporting, recovery exports and default input.
-6. Measure run cost and success rate before enabling Store monetization.
+1. Obtain permitted live validation on the actual private Apify build for keywords,
+   Offer IDs, pagination, deduplication and partial-failure exports.
+2. Confirm available proxy-country access and measure residential traffic costs,
+   including failed attempts, before setting event prices.
+3. Independently compare returned products and price/currency evidence with source.
+4. Keep CI, definition schemas and ordinary limited-permission startup passing.
+5. Keep preview warnings until successful live runs support removing them.
 
 Do not infer production readiness from an all-green offline test suite.

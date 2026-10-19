@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 — development preview, 2026-10-19
+
+- Simplify the form to keywords or numeric Offer IDs. IDs take priority over
+  keywords, with no search-mode dropdown. Keep safe legacy keyword aliases.
+- Remove image/search-link collection, upload fields, image downloader and
+  obsolete examples. Removed API inputs now return explicit validation errors.
+- Connect the existing source-backed detail parser to the Offer ID collector;
+  require a matching product identity and flag login-gated completeness.
+- Add explicit RESIDENTIAL Apify Proxy configuration: CN default or HK, one
+  session per run, sanitized errors and no automatic country/direct fallback.
+- Clearly disclose Apify traffic costs. No paid runs, account purchases or
+  monetization settings are changed by this update.
+- Defaults: 100 products and five pages per keyword, CSV exports on. A
+  10,000-product ceiling is not advertised as unlimited.
+- 85 offline tests pass, including keyword/ID workflows and mocked proxy setup.
+  Earlier login/verification failures are not proven resolved by this change.
+
 ## 0.1.2 — development preview, 2026-10-19
 
 - Add Search results links mode: copy the new 1688 results tab's address and

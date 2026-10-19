@@ -3,17 +3,15 @@ import csv
 import io
 import json
 from pathlib import Path
-import socket
 import unittest
 
 from jsonschema import Draft7Validator, validate
 
-from src.config import Config, InputError, product_url, search_url
+from src.config import Config, InputError, product_url
 from src.exports import csv_text, supplier_rows
-from src.images import image_type, resolve_public
 from src.parser import parse_search, parse_product, AccessBlocked, UnsupportedLayout
 from src.pricing import quote, decimal_text
-from src.runner import Runner, RunFailed
+from src.runner import Runner, RunFailed, input_specs
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -27,10 +25,13 @@ class InputTests(unittest.TestCase):
         defaults = {k: v["default"] for k, v in schema["properties"].items() if "default" in v}
         validate(defaults, schema)
         self.assertEqual(Config.parse({}), Config.parse(defaults))
-        self.assertTrue(Config.parse({}).save_csv)
-        self.assertTrue(Config.parse({}).use_proxy)
+        config = Config.parse({})
+        self.assertTrue(config.save_csv)
+        self.assertTrue(config.use_proxy)
+        self.assertEqual(config.proxy_country, "CN")
+        self.assertEqual((config.terms, config.max_products), (["wireless earbuds"], 100))
 
-    def test_urls_normalized(self):
+    def test_urls_normalized_for_internal_detail_parser(self):
         self.assertEqual(product_url("1071313125369"), "https://detail.1688.com/offer/1071313125369.html")
         self.assertEqual(product_url("https://m.1688.com/offer/1071313125369.html?tracking=1"), product_url("1071313125369"))
 
@@ -39,54 +40,68 @@ class InputTests(unittest.TestCase):
             with self.subTest(url=url), self.assertRaises(InputError):
                 product_url(url)
 
-    def test_no_silent_blank_input_or_wrong_mode(self):
-        for raw in [{"searchTerms": []}, {"searchMode": "urls"}, {"searchMode": "image"}, {"searchMode": "supplier"}]:
+    def test_no_silent_blank_input_or_removed_mode(self):
+        for raw in [{"keywords": []}, {"searchTerms": []}, {"searchMode": "urls"}, {"searchMode": "image"}, {"searchMode": "search_urls"}, {"searchMode": "supplier"}, {"searchMode": "offer_ids"}]:
             with self.subTest(raw=raw), self.assertRaises(InputError):
                 Config.parse(raw)
 
     def test_reject_bool_and_string_numbers(self):
-        for raw in [{"orderQuantity": True}, {"maxPagesText": "5"}, {"saveCsvFile": "false"}, {"maxPagesText": 0}]:
+        for raw in [{"orderQuantity": True}, {"maxPagesPerKeyword": "5"}, {"maxResults": True}, {"maxResults": 10001}, {"maxResults": 0}, {"saveCsvFile": "false"}, {"maxPagesPerKeyword": 0}]:
             with self.subTest(raw=raw), self.assertRaises(InputError):
                 Config.parse(raw)
 
-    def test_keywords_dedup(self):
-        self.assertEqual(Config.parse({"searchTerms": [" hair dryer ", "hair dryer"]}).terms, ["hair dryer"])
+    def test_keywords_dedup_and_legacy_keyword_aliases(self):
+        self.assertEqual(Config.parse({"keywords": [" hair dryer ", "hair dryer"]}).terms, ["hair dryer"])
+        config = Config.parse({"searchMode": "keyword", "searchTerms": ["hinge"], "maxProductsPerKeyword": 12, "maxPagesText": 2})
+        self.assertEqual((config.terms, config.max_products, config.max_pages), (["hinge"], 12, 2))
 
-    def test_images_not_pages_or_blob(self):
-        for value in ["blob:https://www.1688.com/1234", "http://images.test/product.jpg", "https://user:pass@images.test/a.jpg"]:
-            with self.assertRaises(InputError):
-                Config.parse({"searchMode": "image", "imageUrls": [value]})
+    def test_offer_ids_take_priority_and_are_deduplicated(self):
+        config = Config.parse({"keywords": ["wireless earbuds"], "offerIds": ["1071313125369", " 1071313125369 ", "999999999999"]})
+        self.assertEqual(config.mode, "offer_ids")
+        self.assertEqual(config.terms, [])
+        self.assertEqual(config.offer_ids, ["1071313125369", "999999999999"])
+        self.assertEqual([s["value"] for s in input_specs(config)], config.offer_ids)
+        self.assertEqual(Config.parse({"offerIds": ["1071313125369"], "keywords": "ignored"}).terms, [])
+
+    def test_offer_ids_are_numeric_strings_not_urls(self):
+        for values in [[1071313125369], ["123"], ["https://detail.1688.com/offer/1071313125369.html"], ["123456;secret"], ["1" * 21], [""], ["123456"] * 101]:
+            with self.subTest(values=values), self.assertRaises(InputError):
+                Config.parse({"offerIds": values})
+
+    def test_old_image_search_link_and_product_url_fields_fail_explicitly(self):
+        for field in ["imageUrls", "uploadedImages", "searchUrls", "productUrls"]:
+            with self.subTest(field=field), self.assertRaises(InputError):
+                Config.parse({field: ["https://example.test/item"]})
+
+    def test_form_exposes_only_keywords_and_offer_ids(self):
+        schema = json.loads((ROOT / ".actor/INPUT_SCHEMA.json").read_text())
+        for field in ["searchMode", "imageUrls", "uploadedImages", "searchUrls", "productUrls", "maxProductsPerImage", "skipFailedImages"]:
+            self.assertNotIn(field, schema["properties"])
+        self.assertIn("keywords", schema["properties"])
+        self.assertIn("offerIds", schema["properties"])
+        self.assertFalse((ROOT / "src/images.py").exists())
+        for example in (ROOT / "examples").glob("*.json"):
+            raw = json.loads(example.read_text())
+            validate(raw, schema)
+            Config.parse(raw)
+
+    def test_proxy_country_explicit_not_automatic_rotation(self):
+        for country in ["CN", "HK"]:
+            self.assertEqual(Config.parse({"proxyCountryMode": country}).proxy_country, country)
+        for country in ["rotate", "US", "", None, True]:
+            with self.subTest(country=country), self.assertRaises(InputError):
+                Config.parse({"proxyCountryMode": country})
+
+    def test_unimplemented_options_are_not_silently_advertised(self):
+        for raw in [{"sortBy": "bestSelling"}, {"merchantType": "superFactory"}, {"includeSupplierIntelligence": True}, {"includeSkuDetails": True}, {"includeDescriptionHtml": True}]:
+            with self.subTest(raw=raw), self.assertRaises(InputError):
+                Config.parse(raw)
+        Config.parse({"sortBy": "relevance", "merchantType": "any", "includeSupplierIntelligence": False})
 
     def test_filename_safety(self):
         for name in ["../foo.csv", "foo.json", "folder/a.csv", "a.csv\n", "1688_suppliers.csv"]:
             with self.assertRaises(InputError):
                 Config.parse({"csvFilename": name})
-
-    def test_search_results_link_preserves_filters_sort_and_page(self):
-        url = "https://air.1688.com/kapp/1688-global/sales/search?keywords=hair%20dryer&sort=price&page=3&filter=global"
-        self.assertEqual(search_url(url + "#section"), url)
-        config = Config.parse({"searchMode": "search_urls", "searchUrls": [url], "maxProductsPerSearchUrl": 12, "maxPagesPerSearchUrl": 2})
-        self.assertEqual(config.search_urls, [url])
-        self.assertEqual((config.max_products, config.max_pages), (12, 2))
-
-    def test_legacy_search_endpoint_supported(self):
-        url = "https://s.1688.com/selloffer/offer_search.htm?keywords=hinge&beginPage=2"
-        self.assertEqual(search_url(url), url)
-
-    def test_search_results_mode_requires_results_link(self):
-        for url in ["https://www.1688.com/", "https://detail.1688.com/offer/1071313125369.html", "https://login.taobao.com/member/login.jhtml", "https://air.1688.com/other?keywords=hinge", "https://air.1688.com/kapp/1688-global/sales/search", "https://user:pass@air.1688.com/kapp/1688-global/sales/search?keywords=hinge"]:
-            with self.subTest(url=url), self.assertRaises(InputError):
-                Config.parse({"searchMode": "search_urls", "searchUrls": [url]})
-        with self.assertRaises(InputError):
-            Config.parse({"searchMode": "search_urls"})
-
-    def test_individual_product_mode_and_field_are_removed(self):
-        schema = json.loads((ROOT / ".actor/INPUT_SCHEMA.json").read_text())
-        self.assertNotIn("urls", schema["properties"]["searchMode"]["enum"])
-        self.assertNotIn("productUrls", schema["properties"])
-        for raw in [{"searchMode": "urls"}, {"productUrls": ["1071313125369"]}]:
-            with self.assertRaises(InputError):
-                Config.parse(raw)
 
 
 class ParserTests(unittest.TestCase):
@@ -269,16 +284,6 @@ class ExportAndSchemaTests(unittest.TestCase):
         for product in parse_search(HTML)["products"]:
             validate({**product, **quote(product, 100)}, dataset["fields"])
 
-    def test_private_image_addresses_rejected(self):
-        for address in ["127.0.0.1", "10.0.0.1", "169.254.169.254", "::1"]:
-            resolver = lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, 443))]
-            with self.assertRaises(ValueError):
-                resolve_public("image.test", resolver)
-
-    def test_non_image_rejected(self):
-        with self.assertRaises(ValueError):
-            image_type(b"<html>login</html>")
-        self.assertEqual(image_type(b"\x89PNG\r\n\x1a\n"), "image/png")
 
 
 class FakeCollector:
@@ -308,9 +313,9 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
     def batch(self, products=None, more=True):
         return {"products": products or parse_search(HTML)["products"][:2], "has_next": more, "page_number": 1}
 
-    async def test_per_image_counter_and_global_dedup(self):
+    async def test_per_keyword_counter_and_global_dedup(self):
         batch = self.batch()
-        runner, collector, snapshots = await self.make({"searchMode": "image", "imageUrls": ["https://images.test/1.jpg", "https://images.test/2.jpg"], "maxProductsPerImage": 2}, [[batch], [batch]])
+        runner, collector, snapshots = await self.make({"keywords": ["first", "second"], "maxResults": 2}, [[batch], [batch]])
         products = await runner.run()
         self.assertEqual(collector.started, [1, 2])
         self.assertEqual(collector.closed, [1, 2])
@@ -319,16 +324,17 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([i["products"] for i in runner.summary["inputs"]], [2, 2])
         self.assertTrue(snapshots)
 
-    async def test_search_link_limits_are_separate_and_labels_do_not_copy_query(self):
-        urls = ["https://air.1688.com/kapp/1688-global/sales/search?keywords=first&page=2", "https://air.1688.com/kapp/1688-global/sales/search?keywords=second&page=3"]
-        batch = self.batch()
-        runner, collector, snapshots = await self.make({"searchMode": "search_urls", "searchUrls": urls, "maxProductsPerSearchUrl": 2}, [[batch], [batch]])
+    async def test_offer_ids_skip_keyword_and_do_not_share_result_cap(self):
+        first = parse_product((FIXTURES / "product-detail.html").read_text(), "1071313125369")
+        second = {**copy.deepcopy(first), "product_id": "999999999999", "product_url": product_url("999999999999")}
+        runner, collector, _ = await self.make({"keywords": ["ignored"], "offerIds": ["1071313125369", "999999999999"], "maxResults": 1},
+                                              [[self.batch([first], more=False)], [self.batch([second], more=False)]])
         products = await runner.run()
         self.assertEqual(collector.started, [1, 2])
         self.assertEqual(len(products), 2)
-        self.assertEqual([i["products"] for i in runner.summary["inputs"]], [2, 2])
-        self.assertEqual(products[0]["matched_inputs"][0]["label"], "search_link_01")
-        self.assertNotIn("keywords=", json.dumps(snapshots))
+        self.assertEqual([i["kind"] for i in runner.summary["inputs"]], ["offer_ids", "offer_ids"])
+        self.assertEqual(products[0]["matched_inputs"][0]["label"], "1071313125369")
+        self.assertEqual(runner.summary["status"], "complete")
 
     async def test_partial_pages_preserved(self):
         runner, _, snapshots = await self.make({}, [[self.batch(), UnsupportedLayout("next page changed")]])

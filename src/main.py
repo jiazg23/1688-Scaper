@@ -2,7 +2,6 @@
 
 import asyncio
 import sys
-from urllib.parse import unquote, urlsplit
 
 from apify import Actor
 from playwright.async_api import async_playwright
@@ -12,21 +11,15 @@ from .collector import BrowserCollector
 from .config import Config
 from .exports import csv_text, supplier_rows, SUPPLIER_FIELDS
 from .runner import Runner
+from .proxy import browser_proxy
 
 
 async def main():
     async with Actor:
         config = Config.parse(await Actor.get_input())
-        Actor.log.warning(f"Development build {__version__}: selectors are fixture-tested, but live search-link, keyword and image collection are NOT release-validated.")
-        proxy = None
-        if config.use_proxy:
-            proxy_config = await Actor.create_proxy_configuration()
-            if proxy_config is None:
-                raise RuntimeError("Apify Proxy was enabled but is unavailable. Configure access or explicitly disable it for a permitted direct run.")
-            proxy_url = await proxy_config.new_url()
-            parts = urlsplit(proxy_url)
-            proxy = {"server": f"{parts.scheme}://{parts.hostname}:{parts.port}",
-                     "username": unquote(parts.username or ""), "password": unquote(parts.password or "")}
+        Actor.log.warning(f"Development build {__version__}: keyword and Offer ID parsers are fixture-tested, but live 1688 collection is NOT release-validated.")
+        Actor.log.info(f"Selected input: {config.mode}. Offer IDs take priority over keywords.")
+        proxy = await browser_proxy(config, Actor.log.info)
         async def checkpoint(products, summary):
             await Actor.set_value("PARTIAL_RESULTS.json", products)
             await Actor.set_value("RUN_SUMMARY.json", summary)

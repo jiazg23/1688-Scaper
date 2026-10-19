@@ -1,60 +1,70 @@
 # Private build and release checklist
 
-## Repository and source
+## Source
 
-Use `https://github.com/jiazg23/1688-Scaper`, default branch `main`, source
-directory `.`. `.actor/actor.json` points to the root Dockerfile. No API token,
-saved browser session or personal credentials belong in this repository.
+Repository: https://github.com/jiazg23/1688-Scaper
+Branch: `main`; source directory: `.`; definition: `.actor/actor.json`.
+Version 0.2.0 uses keywords or numeric Offer IDs only. IDs take priority.
+No saved browser session, token or personal credentials belong in this repository.
 
 ## Build privately first
 
-1. Connect the repository to a private Apify development Actor.
-2. Confirm the source build sees INPUT_SCHEMA, DATASET_SCHEMA and OUTPUT_SCHEMA.
-3. Confirm `python -m src.main --check` passes during the Docker build.
-4. Check proxy access explicitly. A new browser session is used; your Chrome
-   sign-in, language and currency selections are not inherited.
-5. Search/filter on 1688, copy the new results tab's address, choose Search results
-   links and paste it into Links to 1688 search results. Start with one link,
-   one page and five products. Inspect dataset, currency,
-   MOQ, supplier links and the run summary before increasing limits.
+1. Build the latest source and confirm Actor/input/dataset/output definitions load.
+2. Confirm the container's `python -m src.main --check` succeeds.
+3. Check RESIDENTIAL proxy access and selected-country availability in Apify Console.
+   China (CN) is the default; Hong Kong (HK) is a separate explicit choice.
+4. Choose a spending cap and timeout before testing. Residential traffic incurs
+   charges through Apify; failed requests can still consume traffic.
+5. Test one keyword, five products and one page; separately test one known Offer ID.
+6. Inspect actual rows, currency, MOQ, source links, partial flags and run summary.
+
+The agent has not started paid tests, purchased proxies or changed monetization.
+Proxy country selection alone is not evidence that the previous access errors
+are resolved. No automatic fallback or country/identity retry is implemented.
+
+## Migration
+
+- Replace `searchTerms` with `keywords` in new integrations. The old keyword
+  aliases remain supported when new fields are absent.
+- Replace the old per-keyword limits with `maxResults` and `maxPagesPerKeyword`.
+- Remove image/search-link inputs. They now raise explicit validation errors.
+- Provide numeric `offerIds`, not full URLs; these skip all keyword searches.
+- The competitor's `rotate` setting, sorting filters and paid add-ons are not
+  supported options in this independent Actor.
 
 ## Evidence still needed
 
-- A product-detail example with real quantity-price tiers, if available. The
-  supplied public detail page is now parsed, but contains variant prices rather
-  than volume tiers. Full details remain login-gated.
-- Live validation of new-tab collection. The owner confirmed keyword results
-  open a new tab, and ordinary tab handling passes offline tests.
-- The surrounding real X/close-control markup for `iframe#alibaba-login-box`.
-  Optional-popup closure is tested with synthetic wrappers, not the live popup.
-- A second-page card capture and the final-page disabled Next state.
-- An image-results page with its actual pagination markup.
-- Permitted live search-link, keyword, multi-page, image and multi-image runs.
+- Successful permitted live keyword, multi-keyword and second-page collection.
+- Successful permitted live Offer ID extraction against the saved source layout.
+- Whether available CN/HK residential access works in this account and at what cost.
+- Real surrounding X markup for the optional login iframe; current close-button
+  test wrappers are synthetic.
+- Quantity-tier examples if future bulk quotations are required.
 
-The development environment's browser policy currently blocks 1688. Do not
-retry access through alternative domains, proxies, private APIs or other browser
-surfaces to circumvent that policy. Saved-page work can continue offline.
+The development browser previously denied 1688 access. Do not retry through
+alternate domains, private APIs, proxies or other surfaces to circumvent that
+tool policy. Saved-page development and mocked configuration tests remain possible.
 
 ## Before public release
 
-- All live acceptance cases in VALIDATION.md must pass on the actual Apify build.
-- Check build startup under Apify's normal limited permissions.
-- Measure compute/proxy use, time, results and failure rate for multiple runs;
-  only then decide pricing. No public price or billing event has been configured.
-- Retest default input. Do not remove preview warnings until evidence supports it.
-- Review terms, permissions and data handling for the intended users.
+- Complete all live acceptance cases in VALIDATION.md on the actual Apify build.
+- Confirm ordinary limited-permission startup and accurate failure/recovery output.
+- Measure cost, speed, relevant unique results and failure rate over multiple runs.
+- Set pricing only after measuring residential traffic and compute costs.
 - Explicitly choose publication, monetization, platform timeouts and cost caps.
+- Keep preview warnings until production readiness is supported by evidence.
 
-## Candidate display information
+## Preview display information
 
 Name: **1688 Wholesale Product & Supplier Finder**
 
-Current preview description:
+Description:
 
-> Development preview for 1688 product sourcing. Collect product and supplier
-> listings from search-results links, keywords or images, with displayed prices, currencies,
-> MOQs and CSV exports. Live collection has not yet passed release validation.
+> Development preview: search 1688 by keywords or numeric Offer IDs. Collect
+> supported product and supplier fields, displayed prices, MOQs and CSV exports.
+> Explicit residential proxy country settings; traffic costs apply. Live access
+> is not yet release-validated.
 
-Do not advertise verified factories, exact order costs, automatic translation,
-unlimited access or supported image search in a public listing before these
-capabilities have actually been verified.
+Do not advertise guaranteed access, complete verification reports, all supplier
+intelligence, automatic translation or an independently validated competitor
+implementation.

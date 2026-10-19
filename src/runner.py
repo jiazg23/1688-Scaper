@@ -12,9 +12,9 @@ class RunFailed(CollectionError):
 
 
 def input_specs(config):
-    values = {"keyword": config.terms, "image": config.images, "search_urls": config.search_urls}[config.mode]
+    values = config.offer_ids if config.mode == "offer_ids" else config.terms
     return [{"index": i, "kind": config.mode, "value": value,
-             "label": f"image_{i:02d}" if config.mode == "image" else f"search_link_{i:02d}" if config.mode == "search_urls" else value}
+             "label": value}
             for i, value in enumerate(values, 1)]
 
 
@@ -38,7 +38,7 @@ class Runner:
             outcome = {"index": spec["index"], "kind": spec["kind"], "label": spec["label"],
                        "status": "running", "pages": 0, "products": 0, "error": None}
             self.summary["inputs"].append(outcome)
-            seen = set()  # Reset per image/keyword, never stop later inputs on global count.
+            seen = set()  # Reset per keyword/offer, never consume later inputs' quota.
             try:
                 async with aclosing(self.collector.pages(spec, self.config.max_pages)) as pages:
                     await self._consume(pages, spec, outcome, seen)
@@ -52,7 +52,7 @@ class Runner:
                         outcome["error_code" if attribute == "code" else attribute] = getattr(exc, attribute)
                 # Access restrictions are terminal across the run. Never rotate
                 # identity or move to later inputs after the site denies access.
-                stop = isinstance(exc, AccessBlocked) or self.config.strict or (spec["kind"] == "image" and not self.config.skip_failed_images)
+                stop = isinstance(exc, AccessBlocked) or self.config.strict
                 if stop:
                     failure = RunFailed(outcome["error"])
                     break

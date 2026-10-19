@@ -1,9 +1,0 @@
-{
-  "searchMode": "image",
-  "imageUrls": [],
-  "maxProductsPerImage": 50,
-  "maxPagesImage": 5,
-  "useApifyProxy": true,
-  "skipFailedImages": true,
-  "saveCsvFile": true
-}
