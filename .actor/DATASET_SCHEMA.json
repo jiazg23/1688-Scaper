@@ -1,0 +1,29 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["product_id", "title", "product_url", "quote_status"],
+    "properties": {
+      "product_id": {"type": "string"}, "title": {"type": "string"}, "product_url": {"type": "string"},
+      "image_url": {"type": ["string", "null"]}, "display_price": {"type": ["string", "null"]},
+      "currency": {"type": ["string", "null"]}, "moq": {"type": ["integer", "null"]},
+      "supplier_id": {"type": ["string", "null"]}, "supplier_name": {"type": ["string", "null"]},
+      "supplier_url": {"type": ["string", "null"]}, "supplier_rating": {"type": ["number", "null"]},
+      "quote_status": {"type": "string"}, "matched_inputs": {"type": "array", "items": {"type": "object"}}
+    }
+  },
+  "views": {
+    "overview": {
+      "title": "Products and suppliers",
+      "transformation": {"fields": ["image_url", "title", "product_url", "display_price", "currency", "moq", "supplier_name", "supplier_url", "supplier_rating", "quote_status"]},
+      "display": {"component": "table", "properties": {
+        "image_url": {"label": "Image", "format": "image"}, "title": {"label": "Product", "format": "text"},
+        "product_url": {"label": "Product URL", "format": "link"}, "display_price": {"label": "Displayed price", "format": "text"},
+        "currency": {"label": "Currency", "format": "text"}, "moq": {"label": "MOQ", "format": "number"},
+        "supplier_name": {"label": "Supplier", "format": "text"}, "supplier_url": {"label": "Store", "format": "link"},
+        "supplier_rating": {"label": "Visible rating", "format": "number"}, "quote_status": {"label": "Price status", "format": "text"}
+      }}
+    }
+  }
+}

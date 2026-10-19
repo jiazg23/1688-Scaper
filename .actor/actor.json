@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "1688-product-supplier-finder",
+  "title": "1688 Wholesale Product & Supplier Finder",
+  "description": "Development preview: collect 1688 product and supplier listings from keywords, images or offer URLs. Export displayed prices, currency, MOQ and supplier links. Live collection is not yet validated.",
+  "version": "0.1",
+  "dockerfile": "../Dockerfile",
+  "input": "./INPUT_SCHEMA.json",
+  "output": "./OUTPUT_SCHEMA.json",
+  "storages": {"dataset": "./DATASET_SCHEMA.json"}
+}

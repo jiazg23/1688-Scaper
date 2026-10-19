@@ -1,0 +1,25 @@
+name: Offline validation
+on: [push, pull_request]
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium --only-shell
+      - run: python -m compileall -q src tests
+      - run: python -m src.main --check
+      - run: python -m unittest discover -s tests -v
+      - run: docker build -t 1688-actor-preview .
+      - run: docker run --rm --network none 1688-actor-preview python -m src.main --check
+      - name: Verify Chromium starts without site access
+        run: >-
+          docker run --rm --network none 1688-actor-preview python -c
+          "from playwright.sync_api import sync_playwright;
+          p = sync_playwright().start();
+          b = p.chromium.launch(headless=True);
+          page = b.new_page(); page.set_content('<title>Offline startup</title>');
+          assert page.title() == 'Offline startup'; b.close(); p.stop()"

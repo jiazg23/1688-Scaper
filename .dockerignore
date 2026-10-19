@@ -1,0 +1,9 @@
+.venv
+.cache
+.git
+.env
+__pycache__
+storage
+dist
+tests
+VALIDATION.md

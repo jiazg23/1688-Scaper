@@ -1,0 +1,11 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "1688 sourcing output",
+  "type": "object",
+  "properties": {
+    "products": {"type": "string", "title": "Product dataset", "template": "{{links.apiDefaultDatasetUrl}}/items"},
+    "files": {"type": "string", "title": "CSV files and progress snapshots", "template": "{{links.apiDefaultKeyValueStoreUrl}}/keys"},
+    "runSummary": {"type": "string", "title": "Run summary — check partial failures", "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/RUN_SUMMARY.json"},
+    "recovery": {"type": "string", "title": "Last saved products (may be incomplete)", "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/PARTIAL_RESULTS.json"}
+  }
+}

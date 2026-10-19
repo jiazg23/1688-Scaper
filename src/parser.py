@@ -1,0 +1,198 @@
+"""Parsers for user-supplied global search DOM and conservative JSON-LD fallback.
+
+No execution of embedded scripts. No guessed private API response adapters.
+"""
+
+import json
+import re
+from urllib.parse import urlsplit
+
+from bs4 import BeautifulSoup
+
+from .config import product_url, InputError
+from .pricing import decimal_text
+
+CARD = ".cgf-sale-product-list-card-wrapper[data-offerid]"
+NEXT = ".cgf-sale-pagination-next"
+KEYWORD = "textarea.cgf-search-input__input"
+SEARCH = 'button[data-tracker="textSearch.search"]'
+IMAGE_OPEN = "button.cgf-search-input__image-btn"
+IMAGE_INPUT = "input.beacon-upload-input[type=file]"
+IMAGE_CONFIRM = "button.cgf-image-search-panel__confirm-btn"
+
+
+class CollectionError(RuntimeError):
+    pass
+
+
+class AccessBlocked(CollectionError):
+    pass
+
+
+class UnsupportedLayout(CollectionError):
+    pass
+
+
+def text(node):
+    return node.get_text(" ", strip=True) if node else ""
+
+
+def hidden(node):
+    while node:
+        style = re.sub(r"\s+", "", node.get("style", "")).lower()
+        if node.has_attr("hidden") or node.get("aria-hidden") == "true" or "display:none" in style or "visibility:hidden" in style:
+            return True
+        node = node.parent if getattr(node.parent, "attrs", None) is not None else None
+    return False
+
+
+def check_access(html, url=""):
+    lower = html.lower()
+    soup = BeautifulSoup(html, "html.parser")
+    title = text(soup.title).lower()
+    if ("_____tmd_____" in url.lower() or "_____tmd_____" in lower
+            or soup.select_one('#nc_1_wrapper, #baxia-dialog-content, iframe[src*="punish"], iframe[src*="captcha"]')
+            or re.search(r'"action"\s*:\s*"captcha"', lower)
+            or any(marker in title for marker in ("captcha", "access denied", "安全验证", "访问受限"))):
+        raise AccessBlocked("1688 requested verification or denied access. No verification bypass was attempted.")
+    host = urlsplit(url).hostname or ""
+    if host in {"login.1688.com", "login.taobao.com", "passport.1688.com"} or soup.select_one('input[type=password]'):
+        raise AccessBlocked("1688 requires sign-in; browser credentials are not imported into the Actor.")
+
+
+def page_currency(soup):
+    # The user supplied both header and dropdown evidence. Read selected values,
+    # not the full dropdown options or an arbitrary '$' symbol.
+    for node in soup.select(".oversea-language-text, .currency-section .select-value .select-text"):
+        found = re.search(r"(?:^|[^A-Z])(USD|CNY|EUR|GBP|CAD|AUD|JPY|HKD)(?:$|[^A-Z])", text(node).upper())
+        if found:
+            return found[1]
+    return None
+
+
+def supplier_url(value):
+    try:
+        p = urlsplit(value)
+        if (p.scheme == "https" and p.hostname and p.hostname.endswith(".1688.com")
+                and p.port in {None, 443} and not p.username and not p.password):
+            return f"https://{p.hostname}"
+    except (ValueError, TypeError, AttributeError):
+        pass
+    return None
+
+
+def parse_search(html, url=""):
+    check_access(html, url)
+    soup = BeautifulSoup(html, "html.parser")
+    currency = page_currency(soup)
+    products, ids = [], set()
+    for card in soup.select(CARD):
+        offer_id = card.get("data-offerid", "")
+        title = text(card.select_one(".cgf-card-title"))
+        if not re.fullmatch(r"[0-9]{6,20}", offer_id) or not title or offer_id in ids:
+            continue
+        ids.add(offer_id)
+        price_node = card.select_one(".cgf-card-price")
+        amount = "".join(text(price_node.select_one(selector)) if price_node else ""
+                         for selector in (".cgf-integer", ".cgf-dot", ".cgf-decimal"))
+        amount = decimal_text(amount.replace(",", ""))
+        symbol = text(card.select_one(".cgf-card-price .cgf-unit")) or None
+        explicit = {"US$": "USD", "USD": "USD", "CNY": "CNY", "RMB": "CNY", "€": "EUR", "£": "GBP"}.get(symbol)
+        # Conflicting evidence must not silently relabel a price.
+        actual_currency = explicit or currency
+        if explicit and currency and explicit != currency:
+            actual_currency = None
+        if symbol in {"¥", "￥"} and currency not in {"CNY", "JPY"}:
+            actual_currency = None
+        if symbol == "$" and currency not in {"USD", "CAD", "AUD", "HKD"}:
+            actual_currency = None
+        moq_text = text(card.select_one(".cgf-card-moq"))
+        match = re.fullmatch(r"(?:MOQ\s*[:：]?\s*|起订量\s*[:：]?\s*)([0-9][0-9,]*)(?:\s*(pcs|pieces?|units?|件|个))?", moq_text, re.I)
+        moq = int(match[1].replace(",", "")) if match else None
+        anchor = card.select_one(".cgf-card-shop-name a[href]")
+        image = card.select_one(".cgf-card-image img.cgf-img")
+        meta = [text(n) for n in card.select(".cgf-data-row .cgf-item") if not hidden(n)]
+        years = next((re.fullmatch(r"(\d+)\s*(?:yrs?|years?|年)", m, re.I) for m in meta if re.fullmatch(r"(\d+)\s*(?:yrs?|years?|年)", m, re.I)), None)
+        rating = card.select_one(".cgf-rating-score")
+        score = decimal_text(text(rating)) if rating and not hidden(rating) else None
+        report = card.get("data-aplus-report", "")
+        products.append({
+            "product_id": offer_id, "product_url": product_url(offer_id), "title": title,
+            "image_url": image.get("src") if image else None,
+            "display_price": amount, "currency": actual_currency, "price_symbol": symbol,
+            "currency_source": "card" if explicit and actual_currency else "page_setting" if actual_currency else None,
+            "moq": moq, "moq_text": moq_text or None,
+            "quantity_unit": match[2] if match and match[2] else None,
+            "price_basis": "search_card", "price_tiers": [],
+            "supplier_id": card.get("data-supplierid") or None,
+            "supplier_name": text(anchor) or None,
+            "supplier_url": supplier_url(anchor.get("href", "")) if anchor else None,
+            "supplier_years": int(years[1]) if years else None,
+            "supplier_rating": float(score) if score is not None and 0 <= float(score) <= 5 else None,
+            "sales_text": next((m for m in meta if re.search(r"sold|已售", m, re.I)), None),
+            "marketing_tags": list(dict.fromkeys(text(t) for t in card.select(".cgf-card-marketing .cgf-tag") if text(t))),
+            "is_sponsored": True if "_p_isad@1" in report else None,
+            "verified_supplier": None, "manufacturer": None,
+            "extraction_source": "1688_global_search_dom",
+        })
+    if not products:
+        # Unknown/challenge layouts must not be called successful empty searches.
+        raise UnsupportedLayout("No supported 1688 product cards found. Need a current results-page sample; this is not confirmed zero results.")
+    next_node = soup.select_one(NEXT)
+    active = text(soup.select_one(".cgf-sale-pagination-page-active"))
+    has_next = (not next_node.has_attr("disabled") and next_node.get("aria-disabled") != "true") if next_node else None
+    return {"products": products, "has_next": has_next, "page_number": int(active) if active.isdigit() else None}
+
+
+def parse_product(html, url):
+    """Standards-only fallback; a real detail-page adapter still needs a sample."""
+    check_access(html, url)
+    expected_url = product_url(url)
+    soup = BeautifulSoup(html, "html.parser")
+    def walk(value):
+        if isinstance(value, list):
+            for item in value:
+                yield from walk(item)
+        elif isinstance(value, dict):
+            types = value.get("@type", [])
+            if "Product" in (types if isinstance(types, list) else [types]):
+                yield value
+            yield from walk(value.get("@graph", []))
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            candidates = list(walk(json.loads(script.string or script.get_text())))
+        except (json.JSONDecodeError, TypeError):
+            continue
+        for item in candidates:
+            try:
+                # Require identity evidence, not the first recommended Product.
+                if product_url(item.get("url", "")) != expected_url:
+                    continue
+            except (InputError, AttributeError):
+                continue
+            if not isinstance(item.get("name"), str) or not item["name"].strip():
+                continue
+            offers = item.get("offers", {})
+            offer = offers if isinstance(offers, dict) else {}
+            currency = offer.get("priceCurrency")
+            if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
+                currency = None
+            image = item.get("image")
+            if isinstance(image, list):
+                image = image[0] if image else None
+            if isinstance(image, dict):
+                image = image.get("url")
+            seller = offer.get("seller", {})
+            seller = seller if isinstance(seller, dict) else {}
+            return {"product_id": expected_url.split("/")[-1].split(".")[0], "product_url": expected_url,
+                    "title": item["name"].strip(), "image_url": image if isinstance(image, str) else None,
+                    "display_price": decimal_text(offer.get("price")), "currency": currency,
+                    "price_symbol": None, "currency_source": "json_ld" if currency else None,
+                    "moq": None, "moq_text": None, "quantity_unit": None,
+                    "price_basis": "structured_offer", "price_tiers": [],
+                    "supplier_id": None, "supplier_name": seller.get("name") if isinstance(seller.get("name"), str) else None,
+                    "supplier_url": supplier_url(seller.get("url", "")),
+                    "supplier_years": None, "supplier_rating": None, "sales_text": None,
+                    "marketing_tags": [], "is_sponsored": None, "verified_supplier": None,
+                    "manufacturer": None, "extraction_source": "json_ld_product"}
+    raise UnsupportedLayout("No identity-matched Product JSON-LD found. A 1688 product-detail HTML sample is still required.")

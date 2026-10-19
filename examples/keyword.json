@@ -1,0 +1,9 @@
+{
+  "searchMode": "keyword",
+  "searchTerms": ["hair dryer"],
+  "maxProductsPerKeyword": 50,
+  "maxPagesText": 5,
+  "orderQuantity": 100,
+  "useApifyProxy": true,
+  "saveCsvFile": true
+}
